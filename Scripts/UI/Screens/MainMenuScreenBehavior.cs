@@ -1,3 +1,4 @@
+using Common.Scripts.Equipment.UI;
 using OctoberStudio.Audio;
 using OctoberStudio.Easing;
 using OctoberStudio.Upgrades.UI;
@@ -14,18 +15,21 @@ namespace OctoberStudio.UI
         [SerializeField] UpgradesWindowBehavior upgradesWindow;
         [SerializeField] SettingsWindowBehavior settingsWindow;
         [SerializeField] CharactersWindowBehavior charactersWindow;
+        [SerializeField] EquipmentWindowBehavior equipmentsWindow;
 
         private void Awake()
         {
             canvas = GetComponent<Canvas>();
+            equipmentsWindow.Close();
         }
 
         private void Start()
         {
-            lobbyWindow.Init(ShowUpgrades, ShowSettings, ShowCharacters);
+            lobbyWindow.Init(ShowUpgrades, ShowSettings, ShowCharacters,ShowEquips);
             upgradesWindow.Init(HideUpgrades);
             settingsWindow.Init(HideSettings);
             charactersWindow.Init(HideCharacters);
+            equipmentsWindow.Init(HideEquipments);
         }
 
         private void ShowUpgrades()
@@ -51,12 +55,26 @@ namespace OctoberStudio.UI
             lobbyWindow.Close();
             charactersWindow.Open();
         }
+        private void ShowEquips()
+        {
+            GameController.AudioManager.PlaySound(AudioManager.BUTTON_CLICK_HASH);
+
+            lobbyWindow.Close();
+            equipmentsWindow.Open();
+        }
 
         private void HideCharacters()
         {
             GameController.AudioManager.PlaySound(AudioManager.BUTTON_CLICK_HASH);
 
             charactersWindow.Close();
+            lobbyWindow.Open();
+        }
+        private void HideEquipments()
+        {
+            GameController.AudioManager.PlaySound(AudioManager.BUTTON_CLICK_HASH);
+
+            equipmentsWindow.Close();
             lobbyWindow.Open();
         }
 

@@ -3,6 +3,8 @@ using System.Collections;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using System.Linq;
+using Common.Scripts.Equipment;
+using OctoberStudio.Equipment;
 #if UNITY_EDITOR
 using UnityEditor;
 #endif
@@ -30,6 +32,9 @@ namespace OctoberStudio
 
         [SerializeField] protected ProjectSettings projectSettings;
         public static ProjectSettings ProjectSettings => instance.projectSettings;
+        
+        [SerializeField] protected EquipmentManager equipmentManager;
+        public static EquipmentManager EquipmentManager => instance.equipmentManager;
 
         public static ISaveManager SaveManager { get; private set; }
         public static IAudioManager AudioManager { get; private set; }
@@ -42,6 +47,7 @@ namespace OctoberStudio
         public static AudioSource Music { get; private set; }
 
         private static StageSave stageSave;
+        private static EquipmentSave equipmentSave;
 
         // Indicates that the main menu is just loaded, and not exited from the game scene
         public static bool FirstTimeLoaded { get; private set; }
@@ -74,6 +80,7 @@ namespace OctoberStudio
             TempGold = SaveManager.GetSave<CurrencySave>("temp_gold");
 
             stageSave = SaveManager.GetSave<StageSave>("Stage");
+            equipmentSave = SaveManager.GetSave<EquipmentSave>("EquipmentSave");
 
             if (!stageSave.loadedBefore)
             {
@@ -150,6 +157,7 @@ namespace OctoberStudio
         {
             AudioManager = audioManager;
         }
+        
 
         public static void LoadStage()
         {

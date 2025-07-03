@@ -117,7 +117,7 @@ namespace OctoberStudio
             RecalculateSizeMultiplier(1f);
             RecalculateDurationMultiplier(1);
             RecalculateGoldMultiplier(1);
-
+            RecalculateStatsFromEquipment();
             LookDirection = Vector2.right;
 
             IsMovingAlowed = true;
@@ -361,6 +361,20 @@ namespace OctoberStudio
                 
                 GameController.AudioManager.PlaySound(RECEIVING_DAMAGE_HASH);
             }
+        }
+        
+        public void RecalculateStatsFromEquipment()
+        {
+            if (Equipment.EquipmentManager.Instance == null)
+                return;
+            var equipmentStats = Equipment.EquipmentManager.Instance.GetTotalEquipmentStats();
+            RecalculateMaxHP(1f + equipmentStats.bonusHP / Data.BaseHP);
+            RecalculateDamage(1f + equipmentStats.bonusDamage / Data.BaseDamage);
+            RecalculateMoveSpeed(1f + equipmentStats.bonusSpeed);
+            RecalculateMagnetRadius(1f + equipmentStats.bonusMagnetRadius);
+            RecalculateXPMuliplier(1f + equipmentStats.bonusXPMultiplier);
+            RecalculateCooldownMuliplier(1f - equipmentStats.bonusCooldownReduction);
+            RecalculateDamageReduction(equipmentStats.bonusDamageReduction);
         }
     }
 }

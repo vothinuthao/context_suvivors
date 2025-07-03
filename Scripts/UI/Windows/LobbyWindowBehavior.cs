@@ -26,6 +26,7 @@ namespace OctoberStudio.UI
         [SerializeField] Button upgradesButton;
         [SerializeField] Button settingsButton;
         [SerializeField] Button charactersButton;
+        [SerializeField] Button equidmentButton;
         [SerializeField] Button leftButton;
         [SerializeField] Button rightButton;
 
@@ -76,11 +77,13 @@ namespace OctoberStudio.UI
             GameController.InputManager.InputAsset.UI.Settings.performed += OnSettingsInputClicked;
         }
 
-        public void Init(UnityAction onUpgradesButtonClicked, UnityAction onSettingsButtonClicked, UnityAction onCharactersButtonClicked)
+        public void Init(UnityAction onUpgradesButtonClicked, UnityAction onSettingsButtonClicked, UnityAction onCharactersButtonClicked,
+            UnityAction onEquidmentButtonClicked)
         {
             upgradesButton.onClick.AddListener(onUpgradesButtonClicked);
             settingsButton.onClick.AddListener(onSettingsButtonClicked);
             charactersButton.onClick.AddListener(onCharactersButtonClicked);
+            equidmentButton.onClick.AddListener(onEquidmentButtonClicked);
         }
 
         public void InitStage(int stageId)

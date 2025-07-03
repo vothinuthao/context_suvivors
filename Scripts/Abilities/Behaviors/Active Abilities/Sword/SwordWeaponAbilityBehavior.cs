@@ -37,26 +37,61 @@ namespace OctoberStudio.Abilities
             abilityCoroutine = StartCoroutine(AbilityCoroutine());
         }
 
+        // private IEnumerator AbilityCoroutine()
+        // {
+        //     var lastTimeSpawned = Time.time - AbilityCooldown;
+        //
+        //     while (true)
+        //     {
+        //         for(int i = 0; i < AbilityLevel.SlashesCount; i++)
+        //         {
+        //             var slash = slashPool.GetEntity();
+        //
+        //             slash.transform.position = PlayerBehavior.CenterPosition;
+        //             slash.transform.rotation = Quaternion.FromToRotation(Vector2.right, PlayerBehavior.Player.LookDirection) * shashDirections[i].localRotation;
+        //
+        //             slash.DamageMultiplier = AbilityLevel.Damage;
+        //             slash.KickBack = false;
+        //
+        //             slash.Size = AbilityLevel.SlashSize;
+        //
+        //             slash.Init();
+        //
+        //             slash.onFinished += OnProjectileFinished;
+        //             slashes.Add(slash);
+        //
+        //             GameController.AudioManager.PlaySound(STEEL_SWORD_ATTACK_HASH);
+        //
+        //             yield return new WaitForSeconds(AbilityLevel.TimeBetweenSlashes * PlayerBehavior.Player.CooldownMultiplier);
+        //         }
+        //
+        //         yield return new WaitForSeconds(AbilityLevel.AbilityCooldown * PlayerBehavior.Player.CooldownMultiplier - AbilityLevel.TimeBetweenSlashes * PlayerBehavior.Player.CooldownMultiplier * AbilityLevel.SlashesCount);
+        //     }
+        // }
         private IEnumerator AbilityCoroutine()
         {
             var lastTimeSpawned = Time.time - AbilityCooldown;
 
             while (true)
             {
+                var closestEnemy = StageController.EnemiesSpawner.GetClosestEnemy(PlayerBehavior.CenterPosition);
+                Vector2 attackDirection = Vector2.up;
+                if (closestEnemy != null)
+                {
+                    attackDirection = closestEnemy.Center - PlayerBehavior.CenterPosition;
+                    attackDirection.Normalize();
+                }
+
                 for(int i = 0; i < AbilityLevel.SlashesCount; i++)
                 {
                     var slash = slashPool.GetEntity();
 
                     slash.transform.position = PlayerBehavior.CenterPosition;
-                    slash.transform.rotation = Quaternion.FromToRotation(Vector2.right, PlayerBehavior.Player.LookDirection) * shashDirections[i].localRotation;
-
+                    slash.transform.rotation = Quaternion.FromToRotation(Vector2.right, attackDirection) * shashDirections[i].localRotation;
                     slash.DamageMultiplier = AbilityLevel.Damage;
                     slash.KickBack = false;
-
                     slash.Size = AbilityLevel.SlashSize;
-
                     slash.Init();
-
                     slash.onFinished += OnProjectileFinished;
                     slashes.Add(slash);
 
@@ -64,11 +99,9 @@ namespace OctoberStudio.Abilities
 
                     yield return new WaitForSeconds(AbilityLevel.TimeBetweenSlashes * PlayerBehavior.Player.CooldownMultiplier);
                 }
-
                 yield return new WaitForSeconds(AbilityLevel.AbilityCooldown * PlayerBehavior.Player.CooldownMultiplier - AbilityLevel.TimeBetweenSlashes * PlayerBehavior.Player.CooldownMultiplier * AbilityLevel.SlashesCount);
             }
         }
-
         private void OnProjectileFinished(SwordSlashBehavior slash)
         {
             slash.onFinished -= OnProjectileFinished;
