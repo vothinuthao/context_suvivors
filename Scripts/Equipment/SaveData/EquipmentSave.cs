@@ -1,8 +1,8 @@
-using System.Collections.Generic;
 using OctoberStudio.Save;
+using System.Collections.Generic;
 using UnityEngine;
 
-namespace Common.Scripts.Equipment
+namespace OctoberStudio.Equipment
 {
     [System.Serializable]
     public class EquipmentSave : ISave
@@ -10,44 +10,113 @@ namespace Common.Scripts.Equipment
         [System.Serializable]
         public class EquippedItem
         {
-            public EquipmentType equipmentType;
-            public int equipmentId = -1;
-            public int level = 1;
+            [SerializeField] public EquipmentType equipmentType;
+            [SerializeField] public int equipmentId = -1;
+            [SerializeField] public int level = 1;
+
+            public EquippedItem() { }
+
+            public EquippedItem(EquipmentType type, int id, int lvl)
+            {
+                equipmentType = type;
+                equipmentId = id;
+                level = lvl;
+            }
         }
 
         [System.Serializable]
         public class InventoryItem
         {
-            public EquipmentType equipmentType;
-            public int equipmentId;
-            public int level = 1;
-            public int quantity = 1;
+            [SerializeField] public EquipmentType equipmentType;
+            [SerializeField] public int equipmentId;
+            [SerializeField] public int level = 1;
+            [SerializeField] public int quantity = 1;
+
+            public InventoryItem() { }
+
+            public InventoryItem(EquipmentType type, int id, int lvl, int qty)
+            {
+                equipmentType = type;
+                equipmentId = id;
+                level = lvl;
+                quantity = qty;
+            }
         }
+
         [SerializeField] public EquippedItem[] equippedItems = new EquippedItem[6];
-        [SerializeField] public List<InventoryItem> inventory = new List<InventoryItem>();
+        [SerializeField] public InventoryItem[] inventoryItems = new InventoryItem[0];
+
+        // Cached inventory list for performance
+        private List<InventoryItem> _inventoryList;
+
+        // Property để dễ sử dụng như List nhưng sync với array
+        public List<InventoryItem> inventory
+        {
+            get
+            {
+                if (_inventoryList == null)
+                {
+                    _inventoryList = new List<InventoryItem>(inventoryItems);
+                }
+                return _inventoryList;
+            }
+        }
+
+        // Method để sync List về Array khi cần save
+        private void SyncInventoryToArray()
+        {
+            if (_inventoryList != null)
+            {
+                inventoryItems = _inventoryList.ToArray();
+            }
+        }
+
+        // Public method để force sync nếu cần
+        public void ForceSync()
+        {
+            SyncInventoryToArray();
+        }
+
         public void Init()
         {
+            // Initialize equipped slots if null
             if (equippedItems == null || equippedItems.Length != 6)
             {
                 equippedItems = new EquippedItem[6];
                 for (int i = 0; i < 6; i++)
                 {
-                    equippedItems[i] = new EquippedItem
-                    {
-                        equipmentType = (EquipmentType)i,
-                        equipmentId = -1
-                    };
+                    equippedItems[i] = new EquippedItem((EquipmentType)i, -1, 1);
                 }
             }
-            inventory ??= new List<InventoryItem>();
+
+            // Initialize inventory if null
+            if (inventoryItems == null)
+            {
+                inventoryItems = new InventoryItem[0];
+            }
+
+            // Ensure all equipped items exist
+            for (int i = 0; i < 6; i++)
+            {
+                if (equippedItems[i] == null)
+                {
+                    equippedItems[i] = new EquippedItem((EquipmentType)i, -1, 1);
+                }
+            }
+
+            // Load inventory from array to cached list
+            _inventoryList = new List<InventoryItem>(inventoryItems);
         }
 
         public void Flush()
         {
+            // Sync inventory list to array before save
+            SyncInventoryToArray();
         }
 
         public void Clear()
         {
+            // Clear all equipped items
             for (int i = 0; i < 6; i++)
             {
                 if (equippedItems[i] != null)
@@ -57,26 +126,40 @@ namespace Common.Scripts.Equipment
                 }
             }
 
-            inventory.Clear();
+            // Clear inventory list and array
+            if (_inventoryList != null)
+            {
+                _inventoryList.Clear();
+            }
+            inventoryItems = new InventoryItem[0];
         }
 
+        // Get equipped item for specific slot
         public EquippedItem GetEquippedItem(EquipmentType type)
         {
-            return equippedItems[(int)type];
+            int index = (int)type;
+            if (index >= 0 && index < equippedItems.Length)
+            {
+                return equippedItems[index];
+            }
+            return new EquippedItem(type, -1, 1);
         }
 
         // Set equipped item for specific slot
         public void SetEquippedItem(EquipmentType type, int equipmentId, int level = 1)
         {
-            equippedItems[(int)type].equipmentId = equipmentId;
-            equippedItems[(int)type].level = level;
+            int index = (int)type;
+            if (index >= 0 && index < equippedItems.Length)
+            {
+                equippedItems[index].equipmentId = equipmentId;
+                equippedItems[index].level = level;
+            }
         }
 
         // Remove equipped item from slot
         public void UnequipItem(EquipmentType type)
         {
-            equippedItems[(int)type].equipmentId = -1;
-            equippedItems[(int)type].level = 1;
+            SetEquippedItem(type, -1, 1);
         }
 
         // Add item to inventory
@@ -93,14 +176,11 @@ namespace Common.Scripts.Equipment
             }
             else
             {
-                inventory.Add(new InventoryItem
-                {
-                    equipmentType = type,
-                    equipmentId = equipmentId,
-                    level = level,
-                    quantity = quantity
-                });
+                inventory.Add(new InventoryItem(type, equipmentId, level, quantity));
             }
+
+            // Immediately sync to array
+            SyncInventoryToArray();
         }
 
         // Remove item from inventory
@@ -118,6 +198,9 @@ namespace Common.Scripts.Equipment
                 {
                     inventory.Remove(item);
                 }
+
+                // Immediately sync to array
+                SyncInventoryToArray();
                 return true;
             }
             return false;

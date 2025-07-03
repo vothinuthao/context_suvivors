@@ -10,7 +10,7 @@ namespace OctoberStudio.Equipment
     {
         [SerializeField] private EquipmentDatabase database;
         
-        private EquipmentSave equipmentSave;
+        private static EquipmentSave equipmentSave;
         private static EquipmentManager instance;
 
         public static EquipmentManager Instance => instance;
@@ -41,7 +41,7 @@ namespace OctoberStudio.Equipment
         public EquipmentData GetEquippedItem(EquipmentType type)
         {
             var equippedItem = equipmentSave.GetEquippedItem(type);
-            if (equippedItem.equipmentId == -1)
+            if (equippedItem == null || equippedItem.equipmentId == -1)
                 return null;
 
             return database.GetEquipmentById(type, equippedItem.equipmentId);
@@ -111,8 +111,10 @@ namespace OctoberStudio.Equipment
         }
 
         // Get all inventory items
+        // ReSharper disable Unity.PerformanceAnalysis
         public EquipmentSave.InventoryItem[] GetInventoryItems()
         {
+            equipmentSave ??= GameController.SaveManager.GetSave<EquipmentSave>("Equipment");
             return equipmentSave.inventory.ToArray();
         }
 

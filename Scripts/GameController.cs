@@ -47,7 +47,6 @@ namespace OctoberStudio
         public static AudioSource Music { get; private set; }
 
         private static StageSave stageSave;
-        private static EquipmentSave equipmentSave;
 
         // Indicates that the main menu is just loaded, and not exited from the game scene
         public static bool FirstTimeLoaded { get; private set; }
@@ -80,7 +79,7 @@ namespace OctoberStudio
             TempGold = SaveManager.GetSave<CurrencySave>("temp_gold");
 
             stageSave = SaveManager.GetSave<StageSave>("Stage");
-            equipmentSave = SaveManager.GetSave<EquipmentSave>("EquipmentSave");
+           
 
             if (!stageSave.loadedBefore)
             {

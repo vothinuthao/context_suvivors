@@ -1,3 +1,4 @@
+using OctoberStudio.Equipment;
 using TMPro;
 using UnityEngine;
 using UnityEngine.Events;
@@ -48,8 +49,8 @@ namespace Common.Scripts.Equipment.UI
             quantityText.gameObject.SetActive(InventoryItem.quantity > 1);
 
             // Show level if more than 1
-            levelText.text = InventoryItem.level > 1 ? $"Lv.{InventoryItem.level}" : "";
-            levelText.gameObject.SetActive(InventoryItem.level > 1);
+            // levelText.text = InventoryItem.level > 1 ? $"Lv.{InventoryItem.level}" : "";
+            // levelText.gameObject.SetActive(InventoryItem.level > 1);
         }
     }
 }
