@@ -47,6 +47,7 @@ namespace OctoberStudio
 
         public EnemyData Data { get; private set; }
         public WaveOverride WaveOverride { get; protected set; }
+        public ElementType ElementType => Data.ElementType;
 
         public bool IsVisible => spriteRenderer.isVisible;
         public bool IsAlive => HP > 0;
@@ -175,8 +176,8 @@ namespace OctoberStudio
 
             if(projectile != null)
             {
-                TakeDamage(PlayerBehavior.Player.Damage * projectile.DamageMultiplier);
-
+                // TakeDamage(PlayerBehavior.Player.Damage * projectile.DamageMultiplier);
+                TakeDamage(PlayerBehavior.Player.Damage * projectile.DamageMultiplier, PlayerBehavior.Player.ElementType);
                 if(HP > 0)
                 {
                     if (projectile.KickBack && canBeKickedBack)
@@ -192,13 +193,35 @@ namespace OctoberStudio
             }
         }
 
-        public float GetDamage()
+        // public float GetDamage()
+        // {
+        //     var damage = this.damage;
+        //     if(WaveOverride != null) damage = WaveOverride.ApplyDamageOverride(damage);
+        //
+        //     var baseDamage = StageController.Stage.EnemyDamage * damage;
+        //     
+        //     if (appliedEffects.ContainsKey(EffectType.Damage))
+        //     {
+        //         var damageEffects = appliedEffects[EffectType.Damage];
+        //
+        //         for (int i = 0; i < damageEffects.Count; i++)
+        //         {
+        //             var effect = damageEffects[i];
+        //
+        //             baseDamage *= effect.Modifier;
+        //         }
+        //     }
+        //
+        //     return baseDamage;
+        // }
+
+        public float GetDamage(ElementType defenderElement = ElementType.None)
         {
             var damage = this.damage;
             if(WaveOverride != null) damage = WaveOverride.ApplyDamageOverride(damage);
 
             var baseDamage = StageController.Stage.EnemyDamage * damage;
-            
+    
             if (appliedEffects.ContainsKey(EffectType.Damage))
             {
                 var damageEffects = appliedEffects[EffectType.Damage];
@@ -206,10 +229,13 @@ namespace OctoberStudio
                 for (int i = 0; i < damageEffects.Count; i++)
                 {
                     var effect = damageEffects[i];
-
                     baseDamage *= effect.Modifier;
                 }
             }
+
+            // Apply elemental damage multiplier
+            float elementalMultiplier = ElementSystem.CalculateElementalDamageMultiplier(ElementType, defenderElement);
+            baseDamage *= elementalMultiplier;
 
             return baseDamage;
         }
@@ -219,13 +245,19 @@ namespace OctoberStudio
             if (WaveOverride != null) return WaveOverride.ApplyDropOverride(Data.EnemyDrop);
             return Data.EnemyDrop;
         }
-
         public void TakeDamage(float damage)
+        {
+            TakeDamage(damage, ElementType.None);
+        }
+        public void TakeDamage(float damage, ElementType attackerElement)
         {
             if (!IsAlive) return;
             if (IsInvulnerable) return;
 
-            HP -= damage;
+            float elementalMultiplier = ElementSystem.CalculateElementalDamageMultiplier(attackerElement, ElementType);
+            float finalDamage = damage * elementalMultiplier;
+
+            HP -= finalDamage;
 
             onHealthChanged?.Invoke(HP, MaxHP);
 

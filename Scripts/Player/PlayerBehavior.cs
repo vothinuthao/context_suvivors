@@ -90,14 +90,15 @@ namespace OctoberStudio
 
         protected CharactersSave charactersSave;
         public CharacterData Data { get; set; }
-        protected ICharacterBehavior Character { get; set; }
+        private CharacterBehavior Character { get; set; }
+        public ElementType ElementType => Data.ElementType;
 
         protected virtual void Awake()
         {
             charactersSave = GameController.SaveManager.GetSave<CharactersSave>("Characters");
             Data = charactersDatabase.GetCharacterData(charactersSave.SelectedCharacterId);
 
-            Character = Instantiate(Data.Prefab).GetComponent<ICharacterBehavior>();
+            Character = Instantiate(Data.Prefab).GetComponent<CharacterBehavior>();
             Character.Transform.SetParent(transform);
             Character.Transform.ResetLocal();
 
@@ -284,7 +285,8 @@ namespace OctoberStudio
                     enemy.LastTimeDamagedPlayer = Time.time;
 
                     enemy.onEnemyDied += OnEnemyDied;
-                    TakeDamage(enemy.GetDamage());
+                    // TakeDamage(enemy.GetDamage());
+                    TakeDamage(enemy.GetDamage(ElementType), enemy.ElementType);
                 }
             }
             else
@@ -323,11 +325,18 @@ namespace OctoberStudio
 
         protected float lastTimeVibrated = 0f;
 
+        // ReSharper disable Unity.PerformanceAnalysis
         public virtual void TakeDamage(float damage)
+        {
+            TakeDamage(damage, ElementType.None);
+        }
+        public void TakeDamage(float damage, ElementType attackerElement)
         {
             if (invincible || healthbar.IsZero) return;
 
-            healthbar.Subtract(damage * DamageReductionMultiplier);
+            float elementalMultiplier = ElementSystem.CalculateElementalDamageMultiplier(attackerElement, ElementType);
+            float finalDamage = damage * DamageReductionMultiplier * elementalMultiplier;
+            healthbar.Subtract(finalDamage);
 
             Character.FlashHit();
 

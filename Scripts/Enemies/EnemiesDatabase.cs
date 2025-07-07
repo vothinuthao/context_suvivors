@@ -33,7 +33,11 @@ namespace OctoberStudio
         [SerializeField] GameObject prefab;
         [SerializeField] Sprite icon;
         [SerializeField] List<EnemyDropData> enemyDrop;
-
+        
+        [Space]
+        [Header("Element System")]
+        [SerializeField] ElementType elementType = ElementType.None;
+        public ElementType ElementType => elementType;
         public EnemyType Type => type;
         public GameObject Prefab => prefab;
         public Sprite Icon => icon;

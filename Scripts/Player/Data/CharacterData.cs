@@ -18,6 +18,11 @@ namespace OctoberStudio
 
         [SerializeField] protected GameObject prefab;
         public GameObject Prefab => prefab;
+        
+        [Space]
+        [Header("Element System")]
+        [SerializeField] protected ElementType elementType = ElementType.None;
+        public ElementType ElementType => elementType;
 
         [Space]
         [SerializeField] protected bool hasStartingAbility = false;

@@ -154,6 +154,8 @@ namespace Common.Scripts.Equipment.UI
                     selectedInventoryItem.InventoryItem.equipmentType,
                     selectedInventoryItem.InventoryItem.equipmentId,
                     selectedInventoryItem.InventoryItem.level);
+                
+                itemDetailsPanel.SetActive(false);
             }
         }
 

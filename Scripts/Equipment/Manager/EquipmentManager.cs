@@ -47,10 +47,8 @@ namespace OctoberStudio.Equipment
             return database.GetEquipmentById(type, equippedItem.equipmentId);
         }
 
-        // Equip an item from inventory
         public bool EquipItem(EquipmentType type, int equipmentId, int level = 1)
         {
-            // Check if item exists in inventory
             var hasItem = equipmentSave.inventory.Exists(item => 
                 item.equipmentType == type && 
                 item.equipmentId == equipmentId && 

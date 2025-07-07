@@ -15,6 +15,10 @@ namespace OctoberStudio.Bossfight
         [Tooltip("Prefab of the boss. Should have BossBehavior script or it's descendant attached to it's root GameObject")]
         [SerializeField] GameObject bossPrefab;
         public GameObject BossPrefab => bossPrefab;
+        [Space]
+        [Header("Element System")]
+        [SerializeField] ElementType elementType = ElementType.None;
+        public ElementType ElementType => elementType;
 
         [Tooltip("Prefab of the fence. Should have BossfightFenceBehavior attached to it's root GameObject")]
         [SerializeField] GameObject fencePrefab;

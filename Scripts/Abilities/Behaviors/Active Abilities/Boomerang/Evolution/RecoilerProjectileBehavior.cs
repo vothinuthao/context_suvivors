@@ -19,7 +19,7 @@ namespace OctoberStudio.Abilities
         public void Spawn(float startingAngle)
         {
             Init();
-            transform.localScale = Vector3.one * Size * PlayerBehavior.Player.SizeMultiplier;
+            transform.localScale = Vector3.one * (Size * PlayerBehavior.Player.SizeMultiplier);
 
             KickBack = false;
 

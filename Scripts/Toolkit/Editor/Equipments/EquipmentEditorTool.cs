@@ -381,6 +381,11 @@ namespace OctoberStudio.Equipment.Tools
             if (Application.isPlaying && GameController.SaveManager != null)
             {
                 equipmentSave = GameController.SaveManager.GetSave<EquipmentSave>("Equipment");
+        
+                if (equipmentSave != null)
+                {
+                    equipmentSave.Init(); 
+                }
             }
         }
 
@@ -420,16 +425,21 @@ namespace OctoberStudio.Equipment.Tools
 
         private void AddEquipment(EquipmentType type, int id, int level, int quantity)
         {
-            if (equipmentSave == null) return;
-            
-            equipmentSave.AddToInventory(type, id, level, quantity);
-            
-            if (GameController.EquipmentManager != null)
+            if (Application.isPlaying && GameController.EquipmentManager != null)
             {
-                GameController.EquipmentManager.OnInventoryChanged?.Invoke();
+                GameController.EquipmentManager.AddEquipmentToInventory(type, id, level, quantity);
+        
+                GameController.SaveManager?.Save(false);
+        
+                Debug.Log($"Added {quantity}x {type} ID:{id} (Lv.{level}) to inventory");
             }
-            
-            Debug.Log($"Added {quantity}x {type} ID:{id} (Lv.{level}) to inventory");
+            else if (equipmentSave != null)
+            {
+                // Fallback nếu EquipmentManager không có
+                equipmentSave.AddToInventory(type, id, level, quantity);
+                GameController.SaveManager?.Save(false);
+                Debug.Log($"Added {quantity}x {type} ID:{id} (Lv.{level}) to inventory (direct save)");
+            }
         }
 
         private void RemoveFromInventory(EquipmentType type, int id, int level, int quantity)
