@@ -1,0 +1,6 @@
+item_id,name,rarity,stats,color,owner_id,tags
+1,Steel Sword,Common,"100,20,10,0.05",#FF0000,1,"weapon,melee"
+2,Magic Shield,Uncommon,"0,80,5,0.0",#0000FF,1,"armor,defense"
+3,Speed Boots,Rare,"0,10,50,0.1",#00FF00,1,"armor,speed"
+4,Fire Staff,Epic,"150,5,15,0.15",#FF8800,2,"weapon,magic"
+5,Mana Potion,Common,"0,0,0,0.0",#8888FF,2,"consumable,magic"

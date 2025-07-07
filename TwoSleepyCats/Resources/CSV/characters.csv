@@ -1,0 +1,5 @@
+character_id,name,level,guild_id,position,equipment_ids
+1,Warrior Knight,15,1,"10,5,2","1,2,3"
+2,Fire Mage,12,1,"0,0,0","4,5"
+3,Shadow Rogue,18,2,"15,10,8","6,7,8"
+4,Holy Priest,10,1,"5,12,3","9,10"
