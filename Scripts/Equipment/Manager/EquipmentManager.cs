@@ -38,7 +38,7 @@ namespace OctoberStudio.Equipment
         }
 
         // Get currently equipped item data
-        public EquipmentData GetEquippedItem(EquipmentType type)
+        public EquipmentModel GetEquippedItem(EquipmentType type)
         {
             var equippedItem = equipmentSave.GetEquippedItem(type);
             if (equippedItem == null || equippedItem.equipmentId == -1)

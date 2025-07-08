@@ -15,7 +15,7 @@ namespace Common.Scripts.Equipment.UI
         [SerializeField] private TMP_Text levelText;
         [SerializeField] private Button itemButton;
 
-        public EquipmentData EquipmentData { get; private set; }
+        public EquipmentModel EquipmentModel { get; private set; }
         public EquipmentSave.InventoryItem InventoryItem { get; private set; }
 
         public UnityEvent<InventoryItemBehavior> OnItemClicked;
@@ -29,20 +29,20 @@ namespace Common.Scripts.Equipment.UI
             }
         }
 
-        public void Init(EquipmentSave.InventoryItem inventoryItem, EquipmentData equipmentData)
+        public void Init(EquipmentSave.InventoryItem inventoryItem, EquipmentModel equipmentModel)
         {
             InventoryItem = inventoryItem;
-            EquipmentData = equipmentData;
+            EquipmentModel = equipmentModel;
             UpdateDisplay();
         }
 
         private void UpdateDisplay()
         {
-            if (EquipmentData == null)
+            if (EquipmentModel == null)
                 return;
 
-            iconImage.sprite = EquipmentData.Icon;
-            rarityBorder.color = EquipmentData.GetRarityColor();
+            iconImage.sprite = EquipmentModel.Icon;
+            rarityBorder.color = EquipmentModel.GetRarityColor();
 
             // Show quantity if more than 1
             quantityText.text = InventoryItem.quantity > 1 ? InventoryItem.quantity.ToString() : "";

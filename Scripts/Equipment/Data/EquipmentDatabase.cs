@@ -4,14 +4,14 @@ using UnityEngine;
 [CreateAssetMenu(fileName = "Equipment Database", menuName = "October/Equipment Database")]
 public class EquipmentDatabase : ScriptableObject
 {
-    [SerializeField] protected EquipmentData[] hatEquipments;
-    [SerializeField] protected EquipmentData[] armorEquipments;
-    [SerializeField] protected EquipmentData[] ringEquipments;
-    [SerializeField] protected EquipmentData[] necklaceEquipments;
-    [SerializeField] protected EquipmentData[] beltEquipments;
-    [SerializeField] protected EquipmentData[] shoeEquipments;
+    [SerializeField] protected EquipmentModel[] hatEquipments;
+    [SerializeField] protected EquipmentModel[] armorEquipments;
+    [SerializeField] protected EquipmentModel[] ringEquipments;
+    [SerializeField] protected EquipmentModel[] necklaceEquipments;
+    [SerializeField] protected EquipmentModel[] beltEquipments;
+    [SerializeField] protected EquipmentModel[] shoeEquipments;
 
-    public EquipmentData[] GetEquipmentsByType(EquipmentType type)
+    public EquipmentModel[] GetEquipmentsByType(EquipmentType type)
     {
         switch (type)
         {
@@ -21,11 +21,11 @@ public class EquipmentDatabase : ScriptableObject
             case EquipmentType.Necklace: return necklaceEquipments;
             case EquipmentType.Belt: return beltEquipments;
             case EquipmentType.Shoes: return shoeEquipments;
-            default: return Array.Empty<EquipmentData>();
+            default: return Array.Empty<EquipmentModel>();
         }
     }
 
-    public EquipmentData GetEquipmentById(EquipmentType type, int id)
+    public EquipmentModel GetEquipmentById(EquipmentType type, int id)
     {
         var equipments = GetEquipmentsByType(type);
         if (id >= 0 && id < equipments.Length)

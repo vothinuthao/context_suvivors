@@ -119,10 +119,10 @@ namespace Common.Scripts.Equipment.UI
         {
             selectedInventoryItem = item;
             selectedSlot = null;
-            ShowItemDetails(item.EquipmentData, false);
+            ShowItemDetails(item.EquipmentModel, false);
         }
 
-        private void ShowItemDetails(EquipmentData equipment, bool isEquipped)
+        private void ShowItemDetails(EquipmentModel equipment, bool isEquipped)
         {
             itemDetailsPanel.SetActive(true);
 

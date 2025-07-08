@@ -23,7 +23,7 @@ namespace OctoberStudio.Equipment.UI
         private EquipmentType equipmentType;
 
         public EquipmentType EquipmentType => equipmentType;
-        public EquipmentData CurrentEquipment { get; private set; }
+        public EquipmentModel CurrentEquipment { get; private set; }
 
         public UnityEvent<EquipmentSlotBehavior> OnSlotClicked;
 
