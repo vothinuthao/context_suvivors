@@ -27,7 +27,7 @@ namespace OctoberStudio.Equipment.Tools
         // Equipment names cache
         private Dictionary<EquipmentType, string[]> equipmentNamesCache = new Dictionary<EquipmentType, string[]>();
 
-        [MenuItem("Tools/October Studio/Equipment Debug Tool")]
+        [MenuItem("Tools/Astral Frontier/Equipment Debug Tool")]
         public static void ShowWindow()
         {
             var window = GetWindow<EquipmentEditorTool>("Equipment Debug");

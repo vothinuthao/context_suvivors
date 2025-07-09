@@ -33,9 +33,9 @@ namespace Common.Scripts.Equipment.UI
         [Header("Controls")]
         [SerializeField] private Button backButton;
 
-        private List<InventoryItemBehavior> inventoryItems = new List<InventoryItemBehavior>();
+        private List<InventoryItemVO> inventoryItems = new List<InventoryItemVO>();
         private EquipmentSlotBehavior selectedSlot;
-        private InventoryItemBehavior selectedInventoryItem;
+        private InventoryItemVO selectedInventoryItem;
 
         public void Init(UnityAction onBackButtonClicked)
         {
@@ -69,17 +69,44 @@ namespace Common.Scripts.Equipment.UI
             }
         }
 
+        // private void RefreshInventory()
+        // {
+        //     foreach (var item in inventoryItems)
+        //     {
+        //         if (item != null)
+        //             Destroy(item.gameObject);
+        //     }
+        //     inventoryItems.Clear();
+        //
+        //     if (EquipmentManager.Instance == null)
+        //         return;
+        //     var inventoryData = EquipmentManager.Instance.GetInventoryItems();
+        //     foreach (var inventoryItem in inventoryData)
+        //     {
+        //         var equipmentData = EquipmentManager.Instance.Database.GetEquipmentById(
+        //             inventoryItem.equipmentType, inventoryItem.equipmentId);
+        //
+        //         if (equipmentData != null)
+        //         {
+        //             var itemObject = Instantiate(inventoryItemPrefab, inventoryContent);
+        //             var itemBehavior = itemObject.GetComponent<InventoryItemBehavior>();
+        //             
+        //             itemBehavior.Init(inventoryItem, equipmentData);
+        //             itemBehavior.OnItemClicked.AddListener(OnInventoryItemClicked);
+        //             itemBehavior.transform.ResetLocal();
+        //
+        //             inventoryItems.Add(itemBehavior);
+        //         }
+        //     }
+        // }
         private void RefreshInventory()
         {
-            foreach (var item in inventoryItems)
-            {
-                if (item != null)
-                    Destroy(item.gameObject);
-            }
+            inventoryContent.DestroyAllChildren();
             inventoryItems.Clear();
 
-            if (EquipmentManager.Instance == null)
+            if (!EquipmentManager.Instance)
                 return;
+        
             var inventoryData = EquipmentManager.Instance.GetInventoryItems();
             foreach (var inventoryItem in inventoryData)
             {
@@ -88,18 +115,18 @@ namespace Common.Scripts.Equipment.UI
 
                 if (equipmentData != null)
                 {
-                    var itemObject = Instantiate(inventoryItemPrefab, inventoryContent);
-                    var itemBehavior = itemObject.GetComponent<InventoryItemBehavior>();
-                    
-                    itemBehavior.Init(inventoryItem, equipmentData);
-                    itemBehavior.OnItemClicked.AddListener(OnInventoryItemClicked);
-                    itemBehavior.transform.ResetLocal();
+                    var itemBehavior = inventoryItemPrefab.SpawnWithSetup<InventoryItemVO>(
+                        inventoryContent, 
+                        behavior => {
+                            behavior.Init(inventoryItem, equipmentData);
+                            behavior.OnItemClicked.AddListener(OnInventoryItemClicked);
+                        }
+                    );
 
                     inventoryItems.Add(itemBehavior);
                 }
             }
         }
-
         private void OnEquipmentSlotClicked(EquipmentSlotBehavior slot)
         {
             selectedSlot = slot;
@@ -115,7 +142,7 @@ namespace Common.Scripts.Equipment.UI
             }
         }
 
-        private void OnInventoryItemClicked(InventoryItemBehavior item)
+        private void OnInventoryItemClicked(InventoryItemVO item)
         {
             selectedInventoryItem = item;
             selectedSlot = null;

@@ -31,7 +31,7 @@ namespace OctoberStudio.Tools
         private string searchFilter = "";
         private bool showEmptySaves = true;
 
-        [MenuItem("Tools/October Studio/Save Manager Debug")]
+        [MenuItem("Tools/Astral Frontier/Save Manager Debug")]
         public static void ShowWindow()
         {
             var window = GetWindow<SaveManagerDebugTool>("Save Manager Debug");

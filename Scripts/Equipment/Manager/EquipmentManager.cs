@@ -5,7 +5,6 @@ using OctoberStudio.Save;
 
 namespace OctoberStudio.Equipment
 {
-    // Equipment manager to handle equipment logic
     public class EquipmentManager : MonoBehaviour
     {
         [SerializeField] private EquipmentDatabase database;
@@ -15,7 +14,6 @@ namespace OctoberStudio.Equipment
 
         public static EquipmentManager Instance => instance;
 
-        // Events for UI updates
         public UnityEvent<EquipmentType> OnEquipmentChanged;
         public UnityEvent OnInventoryChanged;
         public EquipmentDatabase Database => database;
@@ -37,7 +35,6 @@ namespace OctoberStudio.Equipment
             equipmentSave = GameController.SaveManager.GetSave<EquipmentSave>("Equipment");
         }
 
-        // Get currently equipped item data
         public EquipmentModel GetEquippedItem(EquipmentType type)
         {
             var equippedItem = equipmentSave.GetEquippedItem(type);
@@ -57,7 +54,6 @@ namespace OctoberStudio.Equipment
             if (!hasItem)
                 return false;
 
-            // If something is already equipped, move it back to inventory
             var currentEquipped = equipmentSave.GetEquippedItem(type);
             if (currentEquipped.equipmentId != -1)
             {
@@ -146,18 +142,5 @@ namespace OctoberStudio.Equipment
                 PlayerBehavior.Player.RecalculateStatsFromEquipment();
             }
         }
-    }
-
-    // Helper struct for equipment stats
-    [System.Serializable]
-    public struct EquipmentStats
-    {
-        public float bonusHP;
-        public float bonusDamage;
-        public float bonusSpeed;
-        public float bonusMagnetRadius;
-        public float bonusXPMultiplier;
-        public float bonusCooldownReduction;
-        public float bonusDamageReduction;
     }
 }
