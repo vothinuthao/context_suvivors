@@ -2,33 +2,20 @@ using Common.Scripts.Equipment;
 using UnityEngine;
 using UnityEngine.Events;
 using OctoberStudio.Save;
+using TwoSleepyCats.Patterns.Singleton;
 
 namespace OctoberStudio.Equipment
 {
-    public class EquipmentManager : MonoBehaviour
+    public class EquipmentManager : MonoSingleton<EquipmentManager>
     {
         [SerializeField] private EquipmentDatabase database;
         
         private static EquipmentSave equipmentSave;
-        private static EquipmentManager instance;
-
-        public static EquipmentManager Instance => instance;
 
         public UnityEvent<EquipmentType> OnEquipmentChanged;
         public UnityEvent OnInventoryChanged;
         public EquipmentDatabase Database => database;
 
-        private void Awake()
-        {
-            if (instance != null)
-            {
-                Destroy(gameObject);
-                return;
-            }
-
-            instance = this;
-            DontDestroyOnLoad(gameObject);
-        }
 
         private void Start()
         {

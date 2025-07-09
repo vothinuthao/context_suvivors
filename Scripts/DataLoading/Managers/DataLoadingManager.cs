@@ -20,11 +20,14 @@ public class DataLoadingManager : MonoSingleton<DataLoadingManager>
         [Header("Resource Paths Configuration")]
         [SerializeField] private ResourcePath[] resourcePaths = new ResourcePath[]
         {
-            new ResourcePath("Equipment Icons", "Icons/Equipment"),
-            new ResourcePath("Ability Icons", "Icons/Abilities"),
-            new ResourcePath("Currency Icons", "Icons/Currency"),
-            new ResourcePath("UI Icons", "Icons/UI"),
-            new ResourcePath("Character Icons", "Icons/Characters")
+            new ResourcePath("Equipment", "Icons"),
+            new ResourcePath("Accessories", "Icons"),
+            new ResourcePath("Gems", "Icons"),
+            new ResourcePath("Currency", "Icons"),
+            new ResourcePath("Special", "Icons"),
+            new ResourcePath("UI", "Icons"),
+            new ResourcePath("Abilities", "Icons"),
+            new ResourcePath("Characters", "Icons")
         };
         
         // Cache for loaded sprites

@@ -35,7 +35,7 @@ namespace Common.Scripts.Equipment.UI
             EquipmentModel = equipmentModel;
             UpdateDisplay();
         }
-
+    
         private void UpdateDisplay()
         {
             if (EquipmentModel == null)

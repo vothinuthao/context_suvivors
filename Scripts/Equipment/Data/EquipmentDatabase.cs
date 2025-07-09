@@ -1,4 +1,5 @@
 using System;
+using OctoberStudio.Equipment;
 using UnityEngine;
 
 [CreateAssetMenu(fileName = "Equipment Database", menuName = "October/Equipment Database")]
