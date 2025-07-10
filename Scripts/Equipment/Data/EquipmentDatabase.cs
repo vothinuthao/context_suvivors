@@ -298,22 +298,17 @@ namespace OctoberStudio.Equipment
             {
                 isDataLoaded = false;
                 loadStatus = "Reloading...";
-                
-                // Force reload from CSV
                 var equipmentData = await CsvDataManager.Instance.ForceReloadAsync<EquipmentModel>();
                 ProcessEquipmentData(equipmentData);
                 
                 isDataLoaded = true;
                 loadStatus = $"Reloaded {totalEquipmentCount} items";
-                
-                Debug.Log($"[EquipmentDatabase] Successfully reloaded {totalEquipmentCount} equipment items");
                 OnDataLoaded?.Invoke();
             }
             catch (Exception ex)
             {
                 isDataLoaded = false;
                 loadStatus = $"Reload Error: {ex.Message}";
-                Debug.LogError($"[EquipmentDatabase] Failed to reload equipment data: {ex.Message}");
                 OnLoadingError?.Invoke(ex.Message);
             }
         }
@@ -323,20 +318,14 @@ namespace OctoberStudio.Equipment
         /// </summary>
         private void LogEquipmentStatistics()
         {
-            Debug.Log($"[EquipmentDatabase] Equipment Statistics:");
-            Debug.Log($"  Total Equipment: {totalEquipmentCount}");
             
             foreach (EquipmentType type in Enum.GetValues(typeof(EquipmentType)))
             {
                 int count = GetEquipmentCountByType(type);
-                Debug.Log($"  {type}: {count} items");
             }
-
-            // Rarity distribution
             foreach (EquipmentRarity rarity in Enum.GetValues(typeof(EquipmentRarity)))
             {
                 var count = allEquipment.Count(e => e.Rarity == rarity);
-                Debug.Log($"  {rarity}: {count} items");
             }
         }
 

@@ -165,21 +165,17 @@ namespace OctoberStudio.Equipment
         // Add item to inventory
         public void AddToInventory(EquipmentType type, int equipmentId, int level = 1, int quantity = 1)
         {
-            var existingItem = inventory.Find(item => 
-                item.equipmentType == type && 
-                item.equipmentId == equipmentId && 
-                item.level == level);
+            // var existingItem = inventory.Find(item => 
+            //     item.equipmentType == type && 
+            //     item.equipmentId == equipmentId && 
+            //     item.level == level);
 
-            if (existingItem != null)
-            {
-                existingItem.quantity += quantity;
-            }
-            else
-            {
-                inventory.Add(new InventoryItem(type, equipmentId, level, quantity));
-            }
+            // if (existingItem != null)
+            // {
+            //     existingItem.quantity += quantity;
+            // }
+            inventory.Add(new InventoryItem(type, equipmentId, level, quantity));
 
-            // Immediately sync to array
             SyncInventoryToArray();
         }
 
