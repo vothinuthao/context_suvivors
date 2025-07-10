@@ -41,7 +41,7 @@ namespace Common.Scripts.Equipment.UI
             if (EquipmentModel == null)
                 return;
 
-            iconImage.sprite = EquipmentModel.Icon;
+            iconImage.sprite = EquipmentModel.GetIcon();
             rarityBorder.color = EquipmentModel.GetRarityColor();
 
             // Show quantity if more than 1

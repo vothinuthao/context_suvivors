@@ -72,7 +72,7 @@ namespace OctoberStudio.Equipment.UI
             if (CurrentEquipment != null)
             {
                 // Show equipped item
-                iconImage.sprite = CurrentEquipment.Icon;
+                iconImage.sprite = CurrentEquipment.GetIcon();
                 iconImage.color = Color.white;
                 rarityBorder.color = CurrentEquipment.GetRarityColor();
                 rarityBorder.gameObject.SetActive(true);
