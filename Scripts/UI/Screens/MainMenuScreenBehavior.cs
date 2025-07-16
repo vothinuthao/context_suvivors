@@ -12,8 +12,8 @@ namespace OctoberStudio.UI
         [SerializeField] BottomNavigationBehavior bottomNavigation;
 
         [Header("Windows")]
-        [SerializeField] LobbyWindowBehavior lobbyWindow;           // Battle/Main tab
-        [SerializeField] UpgradesWindowBehavior upgradesWindow;     // Talents tab  
+        [SerializeField] LobbyWindowBehavior lobbyWindow;
+        [SerializeField] UpgradesWindowBehavior upgradesWindow;
         [SerializeField] SettingsWindowBehavior settingsWindow;
         [SerializeField] CharactersWindowBehavior charactersWindow;
         [SerializeField] EquipmentWindowBehavior equipmentWindow;   // Equipment tab
