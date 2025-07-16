@@ -18,7 +18,7 @@ namespace OctoberStudio.Equipment.Tools
         private int equipmentId = 0;
         private int directEquipmentId = 0; // For direct ID input
         private int level = 1;
-        private int quantity = 1;
+        private int count = 1; // How many individual items to create
         
         // Display options
         private Vector2 scrollPosition;
@@ -78,9 +78,60 @@ namespace OctoberStudio.Equipment.Tools
 
             EditorGUILayout.Space();
 
-            // Database field
+            // Database field and system status
             EditorGUILayout.LabelField("Setup", EditorStyles.boldLabel);
             database = (EquipmentDatabase)EditorGUILayout.ObjectField("Equipment Database", database, typeof(EquipmentDatabase), false);
+
+            // Show System Manager status if available
+            if (EquipmentSystemManager.Instance != null)
+            {
+                var systemStatus = EquipmentSystemManager.Instance.GetSystemStatus();
+                
+                EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+                EditorGUILayout.LabelField("System Manager Status:", EditorStyles.boldLabel);
+                
+                var statusColor = systemStatus.IsHealthy ? Color.green : (systemStatus.IsInitialized ? Color.yellow : Color.red);
+                var originalColor = GUI.color;
+                GUI.color = statusColor;
+                
+                EditorGUILayout.LabelField($"Overall Status: {(systemStatus.IsHealthy ? "HEALTHY" : (systemStatus.IsInitialized ? "ISSUES" : "NOT READY"))}");
+                GUI.color = originalColor;
+                
+                EditorGUILayout.LabelField($"Initialized: {systemStatus.IsInitialized}");
+                EditorGUILayout.LabelField($"Database Ready: {systemStatus.DatabaseReady}");
+                EditorGUILayout.LabelField($"Manager Ready: {systemStatus.ManagerReady}");
+                EditorGUILayout.LabelField($"Save Data Ready: {systemStatus.SaveDataReady}");
+                EditorGUILayout.LabelField($"Validation Errors: {systemStatus.ValidationErrors}");
+                EditorGUILayout.LabelField($"Equipment in DB: {systemStatus.TotalEquipmentInDB}");
+                EditorGUILayout.LabelField($"Inventory Items: {systemStatus.TotalInventoryItems}");
+                
+                EditorGUILayout.BeginHorizontal();
+                if (GUILayout.Button("Reinitialize System"))
+                {
+                    EquipmentSystemManager.Instance.ReinitializeSystem();
+                }
+                if (GUILayout.Button("Emergency Repair"))
+                {
+                    EquipmentSystemManager.Instance.EmergencyRepair();
+                }
+                EditorGUILayout.EndHorizontal();
+                
+                if (GUILayout.Button("Generate Full System Report"))
+                {
+                    EquipmentSystemManager.Instance.GenerateSystemReport();
+                }
+                
+                EditorGUILayout.EndVertical();
+            }
+            else
+            {
+                EditorGUILayout.HelpBox("EquipmentSystemManager not found in scene. Consider adding one for better system management.", MessageType.Info);
+                
+                if (GUILayout.Button("Create Equipment System Manager"))
+                {
+                    CreateEquipmentSystemManager();
+                }
+            }
 
             // Debug info about database status
             if (database == null)
@@ -225,21 +276,24 @@ namespace OctoberStudio.Equipment.Tools
                 equipmentId = EditorGUILayout.IntField("Equipment ID", equipmentId);
             }
             
-            // Level and Quantity
+            // Level and Count
             level = EditorGUILayout.IntSlider("Level", level, 1, 10);
-            quantity = EditorGUILayout.IntSlider("Quantity", quantity, 1, 99);
+            count = EditorGUILayout.IntSlider("Count (Individual Items)", count, 1, 20);
 
             EditorGUILayout.BeginHorizontal();
             
             if (GUILayout.Button("Add to Inventory", GUILayout.Height(30)))
             {
-                AddEquipmentByType(selectedType, equipmentId, level, quantity);
+                AddEquipmentByType(selectedType, equipmentId, level, count);
             }
             
-            if (GUILayout.Button("Add & Equip", GUILayout.Height(30)))
+            if (GUILayout.Button("Add & Equip First", GUILayout.Height(30)))
             {
-                AddEquipmentByType(selectedType, equipmentId, level, 1);
-                EquipItemByType(selectedType, equipmentId, level);
+                var addedItems = AddEquipmentByType(selectedType, equipmentId, level, 1);
+                if (addedItems != null && addedItems.Count > 0)
+                {
+                    EquipItemByUID(addedItems[0].uid);
+                }
             }
             
             EditorGUILayout.EndHorizontal();
@@ -264,24 +318,25 @@ namespace OctoberStudio.Equipment.Tools
             }
             EditorGUILayout.EndHorizontal();
             
-            // Level and Quantity for direct ID
+            // Level and Count for direct ID
             EditorGUILayout.BeginHorizontal();
             level = EditorGUILayout.IntSlider("Level", level, 1, 10);
-            quantity = EditorGUILayout.IntSlider("Quantity", quantity, 1, 99);
+            count = EditorGUILayout.IntSlider("Count", count, 1, 20);
             EditorGUILayout.EndHorizontal();
 
             EditorGUILayout.BeginHorizontal();
             
             if (GUILayout.Button("Add by Global ID", GUILayout.Height(30)))
             {
-                AddEquipmentByGlobalId(directEquipmentId, level, quantity);
+                AddEquipmentByGlobalId(directEquipmentId, level, count);
             }
             
             if (GUILayout.Button("Add & Equip by ID", GUILayout.Height(30)))
             {
-                if (AddEquipmentByGlobalId(directEquipmentId, level, 1))
+                var addedItems = AddEquipmentByGlobalId(directEquipmentId, level, 1);
+                if (addedItems != null && addedItems.Count > 0)
                 {
-                    EquipItemByGlobalId(directEquipmentId, level);
+                    EquipItemByUID(addedItems[0].uid);
                 }
             }
             
@@ -456,10 +511,15 @@ namespace OctoberStudio.Equipment.Tools
                 }
                 if (GUILayout.Button("Add & Equip", GUILayout.Width(110)))
                 {
-                    if (AddEquipmentByGlobalId(equipment.ID, 1, 1))
+                    var addedItems = AddEquipmentByGlobalId(equipment.ID, 1, 1);
+                    if (addedItems != null && addedItems.Count > 0)
                     {
-                        EquipItemByGlobalId(equipment.ID, 1);
+                        EquipItemByUID(addedItems[0].uid);
                     }
+                }
+                if (GUILayout.Button("Add 5x", GUILayout.Width(110)))
+                {
+                    AddEquipmentByGlobalId(equipment.ID, 1, 5);
                 }
                 EditorGUILayout.EndVertical();
                 
@@ -511,6 +571,11 @@ namespace OctoberStudio.Equipment.Tools
                     EditorGUILayout.LabelField($"Type: {item.equipmentType}", EditorStyles.miniLabel);
                     EditorGUILayout.LabelField($"Equipment ID: {item.equipmentId}", EditorStyles.miniLabel);
                     EditorGUILayout.LabelField($"Level: {item.level}", EditorStyles.miniLabel);
+                    
+                    if (!string.IsNullOrEmpty(item.uid))
+                    {
+                        EditorGUILayout.LabelField($"UID: {item.uid}", EditorStyles.miniLabel);
+                    }
                     
                     // Show equipment name if database available
                     if (database != null && item.equipmentId != -1)
@@ -583,10 +648,11 @@ namespace OctoberStudio.Equipment.Tools
                         EditorGUILayout.BeginHorizontal();
                         
                         EditorGUILayout.BeginVertical();
+                        EditorGUILayout.LabelField($"UID: {item.uid}", EditorStyles.miniLabel);
                         EditorGUILayout.LabelField($"Type: {item.equipmentType}", EditorStyles.miniLabel);
                         EditorGUILayout.LabelField($"Equipment ID: {item.equipmentId}", EditorStyles.miniLabel);
                         EditorGUILayout.LabelField($"Level: {item.level}", EditorStyles.miniLabel);
-                        EditorGUILayout.LabelField($"Quantity: {item.quantity}", EditorStyles.miniLabel);
+                        EditorGUILayout.LabelField($"Created: {item.createdAt:yyyy-MM-dd HH:mm}", EditorStyles.miniLabel);
                         
                         // Show equipment name if database available
                         if (database != null)
@@ -594,21 +660,44 @@ namespace OctoberStudio.Equipment.Tools
                             var equipmentData = database.GetEquipmentByGlobalId(item.equipmentId);
                             var name = equipmentData != null ? equipmentData.Name : "Unknown Equipment";
                             EditorGUILayout.LabelField($"Name: {name}", EditorStyles.miniLabel);
+                            
+                            // Show if item is currently equipped
+                            bool isEquipped = equipmentSave.IsItemEquipped(item.uid);
+                            if (isEquipped)
+                            {
+                                EditorGUILayout.LabelField("Status: EQUIPPED", EditorStyles.miniLabel);
+                            }
                         }
                         EditorGUILayout.EndVertical();
                         
                         EditorGUILayout.BeginVertical(GUILayout.Width(80));
-                        if (GUILayout.Button("Equip", GUILayout.Width(70)))
+                        
+                        // Show different buttons based on equipped status
+                        bool isItemEquipped = equipmentSave.IsItemEquipped(item.uid);
+                        
+                        if (!isItemEquipped)
                         {
-                            EquipItemByGlobalId(item.equipmentId, item.level);
+                            if (GUILayout.Button("Equip", GUILayout.Width(70)))
+                            {
+                                EquipItemByUID(item.uid);
+                            }
                         }
+                        else
+                        {
+                            if (GUILayout.Button("Unequip", GUILayout.Width(70)))
+                            {
+                                UnequipItem(item.equipmentType);
+                            }
+                        }
+                        
                         if (GUILayout.Button("Remove", GUILayout.Width(70)))
                         {
-                            RemoveFromInventory(item.equipmentType, item.equipmentId, item.level, 1);
-                        }
-                        if (GUILayout.Button("Remove All", GUILayout.Width(70)))
-                        {
-                            RemoveFromInventory(item.equipmentType, item.equipmentId, item.level, item.quantity);
+                            if (EditorUtility.DisplayDialog("Remove Item", 
+                                $"Remove this item?\nUID: {item.uid}", 
+                                "Yes", "Cancel"))
+                            {
+                                RemoveFromInventory(item.uid);
+                            }
                         }
                         EditorGUILayout.EndVertical();
                         
@@ -725,52 +814,53 @@ namespace OctoberStudio.Equipment.Tools
 
         // ===================== ACTION METHODS =====================
 
-        private void AddEquipmentByType(EquipmentType type, int localIndex, int level, int quantity)
+        private List<EquipmentSave.InventoryItem> AddEquipmentByType(EquipmentType type, int localIndex, int level, int count)
         {
             if (database == null || !database.IsDataLoaded)
             {
                 Debug.LogError("Database not ready!");
-                return;
+                return null;
             }
             
             var equipments = database.GetEquipmentsByType(type);
             if (localIndex >= 0 && localIndex < equipments.Length)
             {
                 var equipment = equipments[localIndex];
-                AddEquipmentByGlobalId(equipment.ID, level, quantity);
+                return AddEquipmentByGlobalId(equipment.ID, level, count);
             }
+            return null;
         }
 
-        private bool AddEquipmentByGlobalId(int globalId, int level, int quantity)
+        private List<EquipmentSave.InventoryItem> AddEquipmentByGlobalId(int globalId, int level, int count)
         {
             if (database == null || !database.IsDataLoaded)
             {
                 Debug.LogError("Database not ready!");
-                return false;
+                return null;
             }
             
             var equipment = database.GetEquipmentByGlobalId(globalId);
             if (equipment == null)
             {
                 Debug.LogError($"Equipment with ID {globalId} not found in database!");
-                return false;
+                return null;
             }
 
             if (Application.isPlaying && GameController.EquipmentManager != null)
             {
-                GameController.EquipmentManager.AddEquipmentToInventory(globalId, level, quantity);
+                var addedItems = GameController.EquipmentManager.AddMultipleEquipmentToInventory(globalId, level, count);
                 GameController.SaveManager?.Save(false);
-                Debug.Log($"Added {quantity}x {equipment.Name} (ID:{globalId}, Lv.{level}) to inventory");
-                return true;
+                Debug.Log($"Added {count}x {equipment.Name} (ID:{globalId}, Lv.{level}) to inventory");
+                return addedItems;
             }
             else if (equipmentSave != null)
             {
-                equipmentSave.AddToInventory(equipment.EquipmentType, globalId, level, quantity);
+                var addedItems = equipmentSave.AddMultipleToInventory(equipment.EquipmentType, globalId, level, count);
                 GameController.SaveManager?.Save(false);
-                Debug.Log($"Added {quantity}x {equipment.Name} (ID:{globalId}, Lv.{level}) to inventory (direct save)");
-                return true;
+                Debug.Log($"Added {count}x {equipment.Name} (ID:{globalId}, Lv.{level}) to inventory (direct save)");
+                return addedItems;
             }
-            return false;
+            return null;
         }
 
         private void AddAllItemsFromCSV()
@@ -786,13 +876,14 @@ namespace OctoberStudio.Equipment.Tools
 
             foreach (var equipment in allEquipment)
             {
-                if (AddEquipmentByGlobalId(equipment.ID, 1, 1))
+                var addedItems = AddEquipmentByGlobalId(equipment.ID, 1, 1);
+                if (addedItems != null && addedItems.Count > 0)
                 {
                     addedCount++;
                 }
             }
 
-            Debug.Log($"Added {addedCount} items from CSV to inventory");
+            Debug.Log($"Added {addedCount} unique items from CSV to inventory");
         }
 
         private void AddAllItemsByRarity(EquipmentRarity rarity)
@@ -808,7 +899,8 @@ namespace OctoberStudio.Equipment.Tools
 
             foreach (var equipment in equipmentByRarity)
             {
-                if (AddEquipmentByGlobalId(equipment.ID, 1, 1))
+                var addedItems = AddEquipmentByGlobalId(equipment.ID, 1, 1);
+                if (addedItems != null && addedItems.Count > 0)
                 {
                     addedCount++;
                 }
@@ -839,6 +931,24 @@ namespace OctoberStudio.Equipment.Tools
             Debug.Log("Added basic equipment set to inventory");
         }
 
+        private void EquipItemByUID(string itemUID)
+        {
+            if (GameController.EquipmentManager != null)
+            {
+                bool success = GameController.EquipmentManager.EquipItemByUID(itemUID);
+                if (success)
+                {
+                    var item = GameController.EquipmentManager.GetItemByUID(itemUID);
+                    var equipment = database.GetEquipmentByGlobalId(item.equipmentId);
+                    Debug.Log($"Equipped {equipment?.Name} (UID: {itemUID})");
+                }
+                else
+                {
+                    Debug.LogError($"Failed to equip item with UID: {itemUID}");
+                }
+            }
+        }
+
         private void EquipItemByType(EquipmentType type, int localIndex, int level)
         {
             var equipments = database.GetEquipmentsByType(type);
@@ -860,8 +970,15 @@ namespace OctoberStudio.Equipment.Tools
 
             if (GameController.EquipmentManager != null)
             {
-                GameController.EquipmentManager.EquipItem(equipment.EquipmentType, globalId, level);
-                Debug.Log($"Equipped {equipment.Name} (ID:{globalId})");
+                bool success = GameController.EquipmentManager.EquipItem(equipment.EquipmentType, globalId, level);
+                if (success)
+                {
+                    Debug.Log($"Equipped {equipment.Name} (ID:{globalId})");
+                }
+                else
+                {
+                    Debug.LogError($"Failed to equip {equipment.Name}");
+                }
             }
         }
 
@@ -873,11 +990,39 @@ namespace OctoberStudio.Equipment.Tools
             }
         }
 
-        private void RemoveFromInventory(EquipmentType type, int globalId, int level, int quantity)
+        private void RemoveFromInventory(string itemUID)
         {
             if (equipmentSave == null) return;
             
-            bool removed = equipmentSave.RemoveFromInventory(type, globalId, level, quantity);
+            var item = equipmentSave.GetItemByUID(itemUID);
+            if (item == null)
+            {
+                Debug.LogError($"Item with UID {itemUID} not found!");
+                return;
+            }
+            
+            bool removed = equipmentSave.RemoveFromInventory(itemUID);
+            
+            if (removed)
+            {
+                if (GameController.EquipmentManager != null)
+                {
+                    GameController.EquipmentManager.OnInventoryChanged?.Invoke();
+                }
+                
+                var equipment = database.GetEquipmentByGlobalId(item.equipmentId);
+                var name = equipment != null ? equipment.Name : $"ID:{item.equipmentId}";
+                Debug.Log($"Removed {name} (UID: {itemUID}) from inventory");
+                
+                SaveEquipmentData();
+            }
+        }
+
+        private void RemoveFromInventory(EquipmentType type, int globalId, int level)
+        {
+            if (equipmentSave == null) return;
+            
+            bool removed = equipmentSave.RemoveFromInventory(type, globalId, level);
             
             if (removed)
             {
@@ -888,7 +1033,7 @@ namespace OctoberStudio.Equipment.Tools
                 
                 var equipment = database.GetEquipmentByGlobalId(globalId);
                 var name = equipment != null ? equipment.Name : $"ID:{globalId}";
-                Debug.Log($"Removed {quantity}x {name} (Lv.{level}) from inventory");
+                Debug.Log($"Removed {name} (Lv.{level}) from inventory");
                 
                 SaveEquipmentData();
             }
@@ -986,6 +1131,31 @@ namespace OctoberStudio.Equipment.Tools
         }
 
         // ===================== HELPER METHODS =====================
+        
+        private void CreateEquipmentSystemManager()
+        {
+            var existingSystemManager = FindObjectOfType<EquipmentSystemManager>();
+            if (existingSystemManager != null)
+            {
+                Debug.Log("EquipmentSystemManager already exists in scene");
+                Selection.activeGameObject = existingSystemManager.gameObject;
+                return;
+            }
+            
+            if (EditorUtility.DisplayDialog("Create Equipment System Manager", 
+                "Create a new EquipmentSystemManager? This will help manage the entire equipment system.", 
+                "Yes", "Cancel"))
+            {
+                GameObject systemManagerGO = new GameObject("EquipmentSystemManager");
+                var systemManager = systemManagerGO.AddComponent<EquipmentSystemManager>();
+                
+                // Mark the object as dirty so it gets saved
+                EditorUtility.SetDirty(systemManagerGO);
+                Selection.activeGameObject = systemManagerGO;
+                
+                Debug.Log("Created new EquipmentSystemManager in scene");
+            }
+        }
         
         private void CreateOrFindEquipmentDatabase()
         {

@@ -146,7 +146,7 @@ namespace OctoberStudio
 
             if (!Mathf.Approximately(joysticPower, 0) && Time.timeScale > 0)
             {
-                var frameMovement = input * Time.deltaTime * Speed;
+                var frameMovement = input * (Time.deltaTime * Speed);
 
                 if (StageController.FieldManager.ValidatePosition(transform.position + Vector3.right * frameMovement.x, fenceOffset))
                 {

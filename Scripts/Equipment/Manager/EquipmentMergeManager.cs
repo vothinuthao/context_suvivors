@@ -71,11 +71,7 @@ namespace OctoberStudio.Equipment
             {
                 if (itemData.equipmentData != null && CanMergeItems(baseItem, itemData.equipmentData))
                 {
-                    // Add multiple entries if quantity > 1
-                    for (int i = 0; i < itemData.inventoryItem.quantity; i++)
-                    {
-                        mergeableItems.Add(itemData);
-                    }
+                    mergeableItems.Add(itemData);
                 }
             }
 
@@ -186,7 +182,7 @@ namespace OctoberStudio.Equipment
                 var mergedItem = CreateMergedItem(item1);
                 if (mergedItem != null)
                 {
-                    EquipmentManager.Instance.AddEquipmentToInventory(mergedItem.ID, mergedItem.Level, 1);
+                    EquipmentManager.Instance.AddEquipmentToInventory(mergedItem.ID, mergedItem.Level);
                     
                     OnMergeCompleted?.Invoke(mergedItem);
                     Debug.Log($"[EquipmentMergeManager] Successfully merged {item1.Name} into {mergedItem.Name}");
@@ -195,8 +191,8 @@ namespace OctoberStudio.Equipment
                 else
                 {
                     // Rollback: add items back to inventory
-                    EquipmentManager.Instance.AddEquipmentToInventory(item1.ID, item1.Level, 1);
-                    EquipmentManager.Instance.AddEquipmentToInventory(item2.ID, item2.Level, 1);
+                    EquipmentManager.Instance.AddEquipmentToInventory(item1.ID, item1.Level);
+                    EquipmentManager.Instance.AddEquipmentToInventory(item2.ID, item2.Level);
                     
                     OnMergeError?.Invoke("Failed to create merged item");
                     return false;
@@ -235,7 +231,7 @@ namespace OctoberStudio.Equipment
             // This assumes EquipmentManager has a method to remove items
             // You may need to implement this method in EquipmentManager
             var equipmentSave = GameController.SaveManager.GetSave<EquipmentSave>("Equipment");
-            equipmentSave?.RemoveFromInventory(equipment.EquipmentType, equipment.ID, equipment.Level, 1);
+            equipmentSave?.RemoveFromInventory(equipment.EquipmentType, equipment.ID, equipment.Level);
         }
 
         /// <summary>
