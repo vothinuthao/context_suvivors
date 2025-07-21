@@ -38,7 +38,6 @@ namespace OctoberStudio.Equipment
         {
             base.Initialize();
             
-            // Initialize equipment type dictionaries
             foreach (EquipmentType equipmentType in Enum.GetValues(typeof(EquipmentType)))
             {
                 equipmentByType[equipmentType] = new List<EquipmentModel>();

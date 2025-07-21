@@ -7,6 +7,7 @@ using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
+using UnityEngine.Serialization;
 using UnityEngine.UI;
 
 namespace OctoberStudio.UI
@@ -26,7 +27,8 @@ namespace OctoberStudio.UI
         [SerializeField] Button upgradesButton;
         [SerializeField] Button settingsButton;
         [SerializeField] Button charactersButton;
-        [SerializeField] Button equidmentButton;
+        [SerializeField] Button equipmentsButton;
+        [SerializeField] Button talentsButton;
         [SerializeField] Button leftButton;
         [SerializeField] Button rightButton;
 
@@ -78,12 +80,13 @@ namespace OctoberStudio.UI
         }
 
         public void Init(UnityAction onUpgradesButtonClicked, UnityAction onSettingsButtonClicked, UnityAction onCharactersButtonClicked,
-            UnityAction onEquidmentButtonClicked)
+            UnityAction onEquidmentButtonClicked,UnityAction onTalentsClicked)
         {
             upgradesButton.onClick.AddListener(onUpgradesButtonClicked);
             settingsButton.onClick.AddListener(onSettingsButtonClicked);
             charactersButton.onClick.AddListener(onCharactersButtonClicked);
-            equidmentButton.onClick.AddListener(onEquidmentButtonClicked);
+            equipmentsButton.onClick.AddListener(onEquidmentButtonClicked);
+            talentsButton.onClick.AddListener(onTalentsClicked);
         }
 
         public void InitStage(int stageId)
@@ -216,6 +219,14 @@ namespace OctoberStudio.UI
                     EventSystem.current.SetSelectedGameObject(playButton.gameObject);
                 }
             }
+        }
+        public void Clear()
+        {
+            upgradesButton.onClick.RemoveAllListeners();
+            settingsButton.onClick.RemoveAllListeners();
+            charactersButton.onClick.RemoveAllListeners();
+            equipmentsButton.onClick.RemoveAllListeners();
+            talentsButton.onClick.RemoveAllListeners();  // NEW: Clear talent button
         }
     }
 }

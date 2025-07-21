@@ -2,6 +2,7 @@ using Common.Scripts.Equipment.UI;
 using OctoberStudio.Audio;
 using OctoberStudio.Easing;
 using OctoberStudio.Upgrades.UI;
+using Talents.UI;
 using UnityEngine;
 
 namespace OctoberStudio.UI
@@ -16,7 +17,8 @@ namespace OctoberStudio.UI
         [SerializeField] UpgradesWindowBehavior upgradesWindow;
         [SerializeField] SettingsWindowBehavior settingsWindow;
         [SerializeField] CharactersWindowBehavior charactersWindow;
-        [SerializeField] EquipmentWindowBehavior equipmentWindow;   // Equipment tab
+        [SerializeField] EquipmentWindowBehavior equipmentWindow;
+        [SerializeField] TalentWindowBehavior talentWindow;
 
         [Header("Shop & Harvest (Future Windows)")]
         [SerializeField] GameObject shopWindow;                     // Shop tab - placeholder
@@ -41,11 +43,12 @@ namespace OctoberStudio.UI
 
         private void InitializeWindows()
         {
-            lobbyWindow.Init(ShowUpgrades, ShowSettings, ShowCharacters, ShowEquipments);
+            lobbyWindow.Init(ShowUpgrades, ShowSettings, ShowCharacters, ShowEquipments,ShowTalents);
             upgradesWindow.Init(ReturnToLobby);
             settingsWindow.Init(ReturnToLobby);
             charactersWindow.Init(ReturnToLobby);
             equipmentWindow.Init(ReturnToLobby);
+            talentWindow.Init(ReturnToLobby);
         }
 
         private void OnTabSelected(BottomNavigationBehavior.NavigationTab tab)
@@ -67,7 +70,8 @@ namespace OctoberStudio.UI
                     break;
 
                 case BottomNavigationBehavior.NavigationTab.Talents:
-                    ShowUpgrades();
+                    // ShowUpgrades();
+                    ShowTalents();
                     break;
 
                 case BottomNavigationBehavior.NavigationTab.Harvest:
@@ -86,6 +90,7 @@ namespace OctoberStudio.UI
             settingsWindow.Close();
             charactersWindow.Close();
             equipmentWindow.Close();
+            talentWindow.Close();
             
             // Close placeholder windows
             if (shopWindow != null) shopWindow.SetActive(false);
@@ -116,6 +121,10 @@ namespace OctoberStudio.UI
             {
                 Debug.Log("Shop window not implemented yet");
             }
+        }
+        private void ShowTalents()
+        {
+            talentWindow.Open();
         }
 
         private void ShowEquipments()
@@ -162,7 +171,6 @@ namespace OctoberStudio.UI
         {
             CloseCurrentWindow();
             
-            // Make sure Battle tab is selected
             bottomNavigation.SelectTab(BottomNavigationBehavior.NavigationTab.Battle);
             ShowLobby();
         }
@@ -179,7 +187,6 @@ namespace OctoberStudio.UI
             ShowLobby();
         }
 
-        // ===== PUBLIC METHODS =====
 
         public void SetTabEnabled(BottomNavigationBehavior.NavigationTab tab, bool enabled)
         {
@@ -190,9 +197,7 @@ namespace OctoberStudio.UI
         {
             return currentActiveTab;
         }
-
-        // ===== CLEANUP =====
-
+        
         private void OnDestroy()
         {
             if (bottomNavigation != null)
@@ -202,6 +207,7 @@ namespace OctoberStudio.UI
             
             charactersWindow.Clear();
             upgradesWindow.Clear();
+            talentWindow.Clear();
         }
     }
 }

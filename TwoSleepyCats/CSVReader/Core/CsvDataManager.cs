@@ -54,12 +54,7 @@ namespace TwoSleepyCats.CSVReader.Core
         // =================================================================
         protected override void Initialize()
         {
-            Debug.Log("[CSVDataManager] Unified CSV Data Manager Initialized (Phase 1 + Phase 2)");
         }
-
-        // =================================================================
-        // PHASE 1 METHODS - BASIC FUNCTIONALITY
-        // =================================================================
 
         /// <summary>
         /// Load CSV data asynchronously and cache it (Phase 1 method)
@@ -114,10 +109,6 @@ namespace TwoSleepyCats.CSVReader.Core
                     return value as List<T>;
                 }
             }
-
-            // If not cached, load synchronously (warning: may block)
-            Debug.LogWarning($"[CSVDataManager] {typeof(T).Name} not loaded yet. Consider using LoadAsync first.");
-            
             var task = LoadAsync<T>();
             task.Wait();
             return task.Result;
@@ -173,10 +164,6 @@ namespace TwoSleepyCats.CSVReader.Core
             await Task.WhenAll(tasks);
             Debug.Log("[CSVDataManager] Preloading completed");
         }
-
-        // =================================================================
-        // PHASE 2 METHODS - ADVANCED FUNCTIONALITY
-        // =================================================================
 
         /// <summary>
         /// Load CSV data with relationships and progress tracking (Phase 2 method)
