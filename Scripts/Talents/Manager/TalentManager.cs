@@ -36,14 +36,12 @@ namespace Talents.Manager
         {
             base.Initialize();
             
-            // Wait for save manager to be ready
             if (GameController.SaveManager != null)
             {
                 InitializeTalentSystem();
             }
             else
             {
-                // Subscribe to save manager ready event if needed
                 StartCoroutine(WaitForSaveManager());
             }
         }
@@ -64,10 +62,8 @@ namespace Talents.Manager
             
             if (talentSave != null)
             {
+                talentSave.Init();
                 IsInitialized = true;
-                Debug.Log("[TalentManager] Talent system initialized successfully");
-                
-                // Load talent points from some source (could be from player save, etc.)
                 LoadTalentPoints();
             }
             else

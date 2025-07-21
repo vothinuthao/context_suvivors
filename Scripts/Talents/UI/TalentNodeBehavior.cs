@@ -4,7 +4,6 @@ using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
 using UnityEngine.Events;
-using UnityEngine.EventSystems;
 using Talents.Data;
 using Talents.Manager;
 
@@ -13,7 +12,7 @@ namespace Talents.UI
     /// <summary>
     /// Behavior for individual talent nodes in the talent tree
     /// </summary>
-    public class TalentNodeBehavior : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler, IPointerClickHandler
+    public class TalentNodeBehavior : MonoBehaviour
     {
         [Header("UI References")]
         [SerializeField] private Image nodeIcon;
@@ -47,8 +46,6 @@ namespace Talents.UI
 
         // Events
         public UnityEvent<TalentNodeBehavior> OnNodeClicked;
-        public UnityEvent<TalentNodeBehavior> OnNodeHovered;
-        public UnityEvent<TalentNodeBehavior> OnNodeUnhovered;
 
         // Cached components
         private RectTransform rectTransform;
@@ -68,7 +65,7 @@ namespace Talents.UI
                 canvasGroup = gameObject.AddComponent<CanvasGroup>();
             }
 
-            // Setup button if available
+            // Setup button for mobile touch
             if (nodeButton != null)
             {
                 nodeButton.onClick.AddListener(() => OnNodeClicked?.Invoke(this));
@@ -313,59 +310,6 @@ namespace Talents.UI
             connectionLine.endColor = lineColor;
         }
 
-        /// <summary>
-        /// Handle node click
-        /// </summary>
-        public void OnPointerClick(PointerEventData eventData)
-        {
-            if (!IsInitialized)
-                return;
-
-            // Try to learn the talent
-            if (TalentManager.Instance != null && 
-                ProgressInfo.UnlockStatus == TalentUnlockStatus.Available)
-            {
-                bool success = TalentManager.Instance.LearnTalent(TalentModel.ID);
-                if (success)
-                {
-                    // Update visual state after learning
-                    UpdateVisualState();
-                    
-                    // Notify parent window to update other nodes
-                    OnNodeClicked?.Invoke(this);
-                }
-            }
-        }
-
-        /// <summary>
-        /// Handle mouse enter
-        /// </summary>
-        public void OnPointerEnter(PointerEventData eventData)
-        {
-            if (!IsInitialized)
-                return;
-
-            // Scale up slightly for hover effect
-            transform.localScale = Vector3.one * 1.1f;
-
-            // Trigger hover event
-            OnNodeHovered?.Invoke(this);
-        }
-
-        /// <summary>
-        /// Handle mouse exit
-        /// </summary>
-        public void OnPointerExit(PointerEventData eventData)
-        {
-            if (!IsInitialized)
-                return;
-
-            // Reset scale
-            transform.localScale = Vector3.one;
-
-            // Trigger unhover event
-            OnNodeUnhovered?.Invoke(this);
-        }
 
         /// <summary>
         /// Get tooltip text for this node
@@ -394,6 +338,7 @@ namespace Talents.UI
         /// </summary>
         public void AnimateLearn()
         {
+            // Simple scale animation using LeanTween
             gameObject.transform.DOScale(Vector3.one * 1.2f, 0.2f)
                 .SetEase(Ease.OutBack)
                 .OnComplete(() => {

@@ -93,7 +93,6 @@ namespace OctoberStudio.Equipment
                 if (_inventoryList == null)
                 {
                     _inventoryList = new List<InventoryItem>(inventoryItems);
-                    // Restore DateTime for all items
                     foreach (var item in _inventoryList)
                     {
                         item.RestoreDateTime();

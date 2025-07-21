@@ -40,8 +40,24 @@ namespace Talents.Data
         [CsvIgnore]
         public TalentNodeType NodeType { get; private set; }
         
+        private Sprite _icon;
+        
         [CsvIgnore]
-        public Sprite Icon { get; private set; }
+        public Sprite Icon 
+        { 
+            get 
+            {
+                if (_icon == null && !string.IsNullOrEmpty(IconPath))
+                {
+                    LoadIcon();
+                }
+                return _icon;
+            }
+            private set 
+            {
+                _icon = value;
+            }
+        }
         
         [CsvIgnore]
         public Vector2 Position => new Vector2(PositionX, PositionY);
@@ -77,8 +93,7 @@ namespace Talents.Data
                 NodeType = TalentNodeType.Normal; // Default fallback
             }
             
-            // Load icon
-            LoadIcon();
+            // Don't load icon here - will be loaded lazily on main thread
         }
 
         /// <summary>
@@ -167,37 +182,50 @@ namespace Talents.Data
         }
 
         /// <summary>
-        /// Load icon sprite
+        /// Load icon sprite (only on main thread)
         /// </summary>
         private void LoadIcon()
         {
+            // Check if we're on main thread
+            if (!UnityEngine.Application.isPlaying)
+            {
+                return;
+            }
+
             if (string.IsNullOrEmpty(IconPath))
             {
                 Debug.LogWarning($"[TalentModel] No icon path specified for talent {Name}");
                 return;
             }
 
-            // Try to load from Resources folder first
-            Icon = Resources.Load<Sprite>($"Icons/Talents/{IconPath}");
-            
-            if (Icon == null)
+            try
             {
-                // Try alternative path
-                Icon = Resources.Load<Sprite>($"Talents/{IconPath}");
-            }
-            
-            if (Icon == null)
-            {
-                // Try direct path
-                Icon = Resources.Load<Sprite>(IconPath);
-            }
-            
-            if (Icon == null)
-            {
-                Debug.LogWarning($"[TalentModel] Could not load icon for talent {Name} at path: {IconPath}");
+                // Try to load from Resources folder first
+                _icon = Resources.Load<Sprite>($"Icons/Talents/{IconPath}");
                 
-                // Try to load a default icon
-                Icon = Resources.Load<Sprite>("Icons/Talents/default_talent");
+                if (_icon == null)
+                {
+                    // Try alternative path
+                    _icon = Resources.Load<Sprite>($"Talents/{IconPath}");
+                }
+                
+                if (_icon == null)
+                {
+                    // Try direct path
+                    _icon = Resources.Load<Sprite>(IconPath);
+                }
+                
+                if (_icon == null)
+                {
+                    Debug.LogWarning($"[TalentModel] Could not load icon for talent {Name} at path: {IconPath}");
+                    
+                    // Try to load a default icon
+                    _icon = Resources.Load<Sprite>("Icons/Talents/default_talent");
+                }
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogWarning($"[TalentModel] Failed to load icon for talent {Name}: {ex.Message}");
             }
         }
 

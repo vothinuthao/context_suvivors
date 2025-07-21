@@ -55,7 +55,6 @@ namespace Talents.UI
 
         // State
         private bool isInitialized = false;
-        private TalentNodeBehavior hoveredNode;
         private System.Action confirmationCallback;
 
         // Events
@@ -268,11 +267,8 @@ namespace Talents.UI
         {
             var node = GetPooledNode();
             node.Initialize(talent);
-            
-            // Subscribe to node events
+            // Subscribe only to click event for mobile
             node.OnNodeClicked.AddListener(OnTalentNodeClicked);
-            node.OnNodeHovered.AddListener(OnTalentNodeHovered);
-            node.OnNodeUnhovered.AddListener(OnTalentNodeUnhovered);
             
             // Add to collections
             talentNodes[talent.ID] = node;
@@ -297,35 +293,12 @@ namespace Talents.UI
         /// </summary>
         private void OnTalentNodeClicked(TalentNodeBehavior node)
         {
+            // Show tooltip on tap
+            ShowTooltip(node);
             // Update all nodes after learning a talent
             UpdateAllNodeStates();
-            
-            // Update talent points display
             UpdateTalentPointsUI(TalentManager.Instance?.CurrentTalentPoints ?? 0);
-            
-            // Trigger tree updated event
             OnTalentTreeUpdated?.Invoke();
-        }
-
-        /// <summary>
-        /// Handle talent node hovered
-        /// </summary>
-        private void OnTalentNodeHovered(TalentNodeBehavior node)
-        {
-            hoveredNode = node;
-            ShowTooltip(node);
-        }
-
-        /// <summary>
-        /// Handle talent node unhovered
-        /// </summary>
-        private void OnTalentNodeUnhovered(TalentNodeBehavior node)
-        {
-            if (hoveredNode == node)
-            {
-                hoveredNode = null;
-                HideTooltip();
-            }
         }
 
         /// <summary>
@@ -335,16 +308,18 @@ namespace Talents.UI
         {
             if (tooltipPanel == null || tooltipText == null)
                 return;
-
             tooltipText.text = node.GetTooltipText();
-            tooltipPanel.SetActive(true);
-
-            // Position tooltip near mouse
-            Vector2 mousePosition = Input.mousePosition;
-            
+            EnableToolTip(true);
             if (tooltipRectTransform != null)
             {
-                tooltipRectTransform.position = mousePosition + new Vector2(10, -10);
+                tooltipRectTransform.anchoredPosition = new Vector2(0, -200); 
+            }
+        }
+        public void EnableToolTip(bool enable)
+        {
+            if (tooltipPanel != null)
+            {
+                tooltipPanel.SetActive(enable);
             }
         }
 
@@ -437,17 +412,6 @@ namespace Talents.UI
                 confirmationPanel.SetActive(false);
         }
 
-        /// <summary>
-        /// Update tooltip position (call in Update if needed)
-        /// </summary>
-        private void UpdateTooltipPosition()
-        {
-            if (tooltipPanel != null && tooltipPanel.activeSelf && tooltipRectTransform != null)
-            {
-                Vector2 mousePosition = Input.mousePosition;
-                tooltipRectTransform.position = mousePosition + new Vector2(10, -10);
-            }
-        }
 
         /// <summary>
         /// Scroll to specific talent
@@ -498,14 +462,6 @@ namespace Talents.UI
                 TalentManager.Instance.OnTalentLearned.RemoveListener(OnTalentLearned);
                 TalentManager.Instance.OnTalentUpgraded.RemoveListener(OnTalentUpgraded);
             }
-        }
-
-        /// <summary>
-        /// Update method for tooltip positioning
-        /// </summary>
-        private void Update()
-        {
-            UpdateTooltipPosition();
         }
 
         /// <summary>

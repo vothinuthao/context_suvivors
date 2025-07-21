@@ -16,7 +16,7 @@ namespace Talents
         {
             _talentLevels = new Dictionary<int, int>();
 
-            if (savedTalents == null) savedTalents = Array.Empty<TalentProgressSave>();
+            savedTalents ??= Array.Empty<TalentProgressSave>();
 
             for (int i = 0; i < savedTalents.Length; i++)
             {
@@ -40,9 +40,9 @@ namespace Talents
 
         public int GetTalentLevel(int talentID)
         {
-            if (_talentLevels.ContainsKey(talentID))
+            if (_talentLevels.TryGetValue(talentID, out var level))
             {
-                return _talentLevels[talentID];
+                return level;
             }
             else
             {

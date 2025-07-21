@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using TwoSleepyCats.CSVReader.Core;
@@ -8,6 +9,9 @@ using Talents.Data;
 
 namespace Talents.Manager
 {
+    /// <summary>
+    /// Database for managing talent data loaded from CSV
+    /// </summary>
     public class TalentDatabase : MonoSingleton<TalentDatabase>
     {
         [Header("Loading Settings")]
@@ -19,17 +23,21 @@ namespace Talents.Manager
         [SerializeField, ReadOnly] private bool isDataLoaded = false;
         [SerializeField, ReadOnly] private string loadStatus = "Not Loaded";
 
+        // Talent data organized by type and position
         private Dictionary<int, TalentModel> talentsById = new Dictionary<int, TalentModel>();
         private List<TalentModel> normalTalents = new List<TalentModel>();
         private List<TalentModel> specialTalents = new List<TalentModel>();
         private List<TalentModel> allTalents = new List<TalentModel>();
 
+        // Talent tree structure
         private Dictionary<int, List<int>> talentDependencies = new Dictionary<int, List<int>>();
         private Dictionary<int, List<int>> talentUnlocks = new Dictionary<int, List<int>>();
 
+        // Events
         public event System.Action OnDataLoaded;
         public event System.Action<string> OnLoadingError;
 
+        // Properties
         public bool IsDataLoaded => isDataLoaded;
         public int TotalTalentCount => totalTalentCount;
         public List<TalentModel> NormalTalents => normalTalents;
@@ -44,28 +52,61 @@ namespace Talents.Manager
                 LoadTalentData();
             }
         }
-
-        private async void LoadTalentData()
+        public void LoadTalentData()
         {
-            try
+            StartCoroutine(LoadTalentDataCoroutine());
+        }
+
+
+        private IEnumerator LoadTalentDataCoroutine()
+        {
+            loadStatus = "Loading...";
+            Debug.Log("[TalentDatabase] Starting to load talent data from CSV...");
+
+            bool loadCompleted = false;
+            List<TalentModel> talentData = null;
+            string errorMessage = null;
+
+            // Start the async load
+            var loadTask = CsvDataManager.Instance.LoadAsync<TalentModel>();
+    
+            // Wait for completion
+            yield return new WaitUntil(() => loadTask.IsCompleted);
+
+            if (loadTask.Exception != null)
             {
-                loadStatus = "Loading...";
-                var talentData = await CsvDataManager.Instance.LoadAsync<TalentModel>();
-                
-                ProcessTalentData(talentData);
-                
-                isDataLoaded = true;
-                loadStatus = $"Loaded {totalTalentCount} talents";
-                OnDataLoaded?.Invoke();
-                
-                Debug.Log($"[TalentDatabase] Loaded {totalTalentCount} talents successfully");
+                errorMessage = loadTask.Exception.GetBaseException().Message;
             }
-            catch (Exception ex)
+            else
+            {
+                talentData = loadTask.Result;
+            }
+
+            // Process on main thread
+            if (string.IsNullOrEmpty(errorMessage) && talentData != null)
+            {
+                try
+                {
+                    ProcessTalentData(talentData);
+            
+                    isDataLoaded = true;
+                    loadStatus = $"Loaded {totalTalentCount} talents";
+                    OnDataLoaded?.Invoke();
+            
+                    Debug.Log($"[TalentDatabase] Loaded {totalTalentCount} talents successfully");
+                }
+                catch (Exception ex)
+                {
+                    errorMessage = ex.Message;
+                }
+            }
+
+            if (!string.IsNullOrEmpty(errorMessage))
             {
                 isDataLoaded = false;
-                loadStatus = $"Error: {ex.Message}";
-                OnLoadingError?.Invoke(ex.Message);
-                Debug.LogError($"[TalentDatabase] Failed to load talent data: {ex.Message}");
+                loadStatus = $"Error: {errorMessage}";
+                OnLoadingError?.Invoke(errorMessage);
+                Debug.LogError($"[TalentDatabase] Failed to load talent data: {errorMessage}");
             }
         }
 
