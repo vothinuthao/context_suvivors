@@ -1,0 +1,120 @@
+## **1. Tổng quan tính năng**
+
+Evolution Chart (Bảng Tiến Hóa) là hệ thống progression chính trong Survivor.io, cho phép người chơi nâng cấp nhân vật và mở khóa các khả năng mới để đối phó với độ khó tăng dần.
+
+### **Mục tiêu chính:**
+- Tăng sức mạnh nhân vật qua thời gian
+- Tạo cảm giác progression và achievement
+- Khuyến khích người chơi tiếp tục chơi để unlock nội dung mới
+- Cung cấp customization cho playstyle khác nhau
+
+---
+
+## **2. Kiến trúc hệ thống**
+
+### **2.1 Hai thành phần chính:**
+
+#### **A. Base Stats Upgrades (Nâng cấp chỉ số cơ bản)**
+- **Chỉ số:** ATK, HP, Armor, Healing Ability
+- **Điều kiện:** Player Level
+- **Tiền tệ:** Gold Coins
+- **Đặc điểm:** Nâng cấp vĩnh viễn, tăng tuyến tính
+
+#### **B. Special Skills (Kỹ năng đặc biệt)**
+- **Loại:** Passive abilities ảnh hưởng gameplay
+- **Điều kiện:** Player Level cụ thể
+- **Tiền tệ:** Gold DNA (từ Trials)
+- **Ví dụ:**
+  - Level 3: Lucky Dog (bắt đầu với 1 skill)
+  - Level 5: Rogue (refresh skills 1 lần)
+  - Level 7: Athlete (tăng movement speed)
+
+---
+
+## **3. Hệ thống tiền tệ**
+
+### **3.1 Gold Coins**
+- **Mục đích:** Mua Base Stats Upgrades
+- **Nguồn:** Hoàn thành levels, kill enemies
+- **Đặc điểm:** Dễ kiếm, sử dụng thường xuyên
+
+### **3.2 Gold DNA**
+- **Mục đích:** Mua Special Skills
+- **Nguồn:** Hoàn thành Trials (nội dung khó)
+- **Đặc điểm:** Hiếm, có giá trị cao
+
+### **3.3 Cơ chế Cost Progression:**
+- **Base Stats:** Cost tăng theo cấp bậc (ví dụ: 100 → 200 → 400 Gold)
+- **Special Skills:** Fixed cost nhưng yêu cầu level cụ thể
+- **Currency Display:** Hiển thị current/required amount rõ ràng
+
+---
+
+## **4. Thiết kế UI/UX**
+
+### **4.1 Layout chính:**
+- **Bên trái - Base Stats Panel:** 
+  - Grid layout hiển thị 4 chỉ số chính (ATK, HP, Armor, Healing)
+  - Mỗi stat có progress bar và nút "+" để upgrade
+  - Hiển thị cost bằng Gold Coins
+  - Current value / Next level value
+
+- **Bên phải - Special Skills Panel:**
+  - Vertical list hiển thị các special skills
+  - Mỗi skill có icon, tên, mô tả effect
+  - Hiển thị unlock level requirement
+  - Cost bằng Gold DNA
+  - Lock/Unlock status rõ ràng
+
+### **4.2 Visual Elements:**
+- **Base Stats:**
+  - Progress bars cho từng stat
+  - Gold coin icon + cost amount
+  - Current/Max level indicators
+  - Preview tooltip khi hover
+
+- **Special Skills:**
+  - Skill icons với visual quality
+  - Lock icons cho skills chưa unlock
+  - DNA cost display
+  - Level requirement badges
+
+### **4.3 Interaction Flow:**
+- Click nút "+" ở Base Stats để upgrade (nếu đủ Gold)
+- Click special skill để mua (nếu đủ level + DNA)
+- Hover để xem preview effects
+- Visual feedback khi upgrade thành công
+
+---
+
+## **5. Chiến thuật và Balance**
+
+### **5.1 Player Decision Making:**
+- **Planning ahead:** Chọn skills phù hợp với playstyle
+- **Resource management:** Phân bổ currency hợp lý
+- **Build diversity:** Tối ưu hóa base stats và special skills
+
+### **5.2 Progression Curve:**
+- **Early game:** Focus base stats
+- **Mid game:** Unlock special skills
+- **Late game:** Maximize all upgrades
+
+---
+
+## **6. Technical Considerations**
+
+### **6.1 Performance:**
+- **Object pooling** cho UI elements
+- **Lazy loading** cho evolution data
+- **Caching** cho frequently accessed data
+
+### **8.2 Scalability:**
+- **Modular design** cho easy content addition
+- **Data-driven** approach với external files
+- **Event system** cho loose coupling
+
+### **8.3 Save System:**
+- Player level progression
+- Unlocked stats và skills
+- Currency amounts
+- Evolution history
