@@ -52,6 +52,13 @@ namespace OctoberStudio.Save
 
             gold.Deposit(1000);
         }
+        [MenuItem("Tools/October/Get 2 Orc", priority = 1)]
+        private static void GetOrc()
+        {
+            var orc = GameController.SaveManager.GetSave<CurrencySave>("orc");
+
+            orc.Deposit(2);
+        }
 
         [MenuItem("Tools/October/Get 1K Gold", true)]
         private static bool GetGoldValidation()

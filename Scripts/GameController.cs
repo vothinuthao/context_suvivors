@@ -65,9 +65,7 @@ namespace OctoberStudio
             instance = this;
 
             FirstTimeLoaded = true;
-
-            currenciesManager.Init();
-
+            
             DontDestroyOnLoad(gameObject);
 
             Application.targetFrameRate = 120;

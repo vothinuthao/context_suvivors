@@ -7,6 +7,7 @@ using TwoSleepyCats.Patterns.Singleton;
 using UnityEngine;
 using UnityEngine.Events;
 using Talents.Data;
+using UnityEngine.Serialization;
 
 namespace Talents.Manager
 {
@@ -15,12 +16,14 @@ namespace Talents.Manager
     /// </summary>
     public class TalentManager : MonoSingleton<TalentManager>
     {
-        [Header("Talent Points")]
-        [SerializeField] private int currentTalentPoints = 0;
-        [SerializeField] private bool unlimitedPoints = false; // For testing
+        [FormerlySerializedAs("currentTalentPoints")]
+        [Header("Currency System")]
+        [SerializeField] private int currentGoldCoins = 0;
+        [SerializeField] private int currentOrc = 0;
+        [SerializeField] private bool unlimitedCurrency = false; 
 
         [Header("Events")]
-        public UnityEvent<int> OnTalentPointsChanged;
+        public UnityEvent<int> OnGoldCoinsChanged;
         public UnityEvent<TalentModel> OnTalentLearned;
         public UnityEvent<TalentModel> OnTalentUpgraded;
         public UnityEvent<string> OnTalentError;
@@ -29,7 +32,7 @@ namespace Talents.Manager
         private TalentSave talentSave;
 
         // Properties
-        public int CurrentTalentPoints => currentTalentPoints;
+        public int CurrentGoldCoins => currentGoldCoins;
         public bool IsInitialized { get; private set; }
 
         protected override void Initialize()
@@ -77,23 +80,12 @@ namespace Talents.Manager
         /// </summary>
         private void LoadTalentPoints()
         {
-            // This could be loaded from player save or calculated from player level
-            // For now, we'll use a simple approach
-            currentTalentPoints = PlayerPrefs.GetInt("TalentPoints", 10); // Start with 10 points
-            OnTalentPointsChanged?.Invoke(currentTalentPoints);
+            currentGoldCoins = GameController.SaveManager.GetSave<CurrencySave>("GoldCoins")?.Amount ?? 0;
+            currentOrc = GameController.SaveManager.GetSave<CurrencySave>("Orc")?.Amount ?? 0;
+            Debug.Log($"[TalentManager] Loaded current gold coins: {currentGoldCoins}");
+            
         }
 
-        /// <summary>
-        /// Add talent points to player
-        /// </summary>
-        public void AddTalentPoints(int points)
-        {
-            currentTalentPoints += points;
-            PlayerPrefs.SetInt("TalentPoints", currentTalentPoints);
-            OnTalentPointsChanged?.Invoke(currentTalentPoints);
-            
-            Debug.Log($"[TalentManager] Added {points} talent points. Total: {currentTalentPoints}");
-        }
 
         /// <summary>
         /// Get current level of a talent
@@ -136,7 +128,7 @@ namespace Talents.Manager
 
             // Check if player has enough talent points
             var cost = TalentDatabase.Instance.GetTalentCost(talentId, currentLevel + 1);
-            if (!unlimitedPoints && currentTalentPoints < cost)
+            if (!unlimitedCurrency && currentGoldCoins < cost)
                 return false;
 
             // Check prerequisites
@@ -190,11 +182,11 @@ namespace Talents.Manager
             var cost = TalentDatabase.Instance.GetTalentCost(talentId, newLevel);
 
             // Deduct talent points
-            if (!unlimitedPoints)
+            if (!unlimitedCurrency)
             {
-                currentTalentPoints -= cost;
-                PlayerPrefs.SetInt("TalentPoints", currentTalentPoints);
-                OnTalentPointsChanged?.Invoke(currentTalentPoints);
+                currentGoldCoins -= cost;
+                PlayerPrefs.SetInt("TalentPoints", currentGoldCoins);
+                OnGoldCoinsChanged?.Invoke(currentGoldCoins);
             }
 
             // Update talent level
@@ -254,11 +246,6 @@ namespace Talents.Manager
 
             // Reset the talent
             talentSave.RemoveTalent(talentId);
-            
-            // Refund talent points
-            AddTalentPoints(refundAmount);
-
-            // Update player stats
             UpdatePlayerStats();
 
             Debug.Log($"[TalentManager] Reset talent: {talent.Name} (Refunded {refundAmount} points)");
@@ -290,9 +277,6 @@ namespace Talents.Manager
 
             // Clear all talents
             talentSave.Clear();
-            
-            // Refund all points
-            AddTalentPoints(totalRefund);
 
             // Update player stats
             UpdatePlayerStats();
@@ -453,20 +437,11 @@ namespace Talents.Manager
             return tooltip;
         }
 
-        /// <summary>
-        /// Debug methods
-        /// </summary>
-        [ContextMenu("Add 10 Talent Points")]
-        public void AddTalentPointsDebug()
-        {
-            AddTalentPoints(10);
-        }
-
         [ContextMenu("Toggle Unlimited Points")]
         public void ToggleUnlimitedPoints()
         {
-            unlimitedPoints = !unlimitedPoints;
-            Debug.Log($"[TalentManager] Unlimited points: {unlimitedPoints}");
+            unlimitedCurrency = !unlimitedCurrency;
+            Debug.Log($"[TalentManager] Unlimited points: {unlimitedCurrency}");
         }
 
         [ContextMenu("Log Talent Bonuses")]

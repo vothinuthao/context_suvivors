@@ -94,7 +94,7 @@ namespace Talents.UI
             // Subscribe to talent manager events
             if (TalentManager.Instance != null)
             {
-                TalentManager.Instance.OnTalentPointsChanged.AddListener(UpdateTalentPointsUI);
+                TalentManager.Instance.OnGoldCoinsChanged.AddListener(UpdateTalentPointsUI);
                 TalentManager.Instance.OnTalentLearned.AddListener(OnTalentLearned);
                 TalentManager.Instance.OnTalentUpgraded.AddListener(OnTalentUpgraded);
             }
@@ -173,7 +173,7 @@ namespace Talents.UI
             if (isInitialized)
             {
                 BuildTalentTree();
-                UpdateTalentPointsUI(TalentManager.Instance?.CurrentTalentPoints ?? 0);
+                UpdateTalentPointsUI(TalentManager.Instance?.CurrentGoldCoins ?? 0);
             }
         }
 
@@ -297,7 +297,7 @@ namespace Talents.UI
             ShowTooltip(node);
             // Update all nodes after learning a talent
             UpdateAllNodeStates();
-            UpdateTalentPointsUI(TalentManager.Instance?.CurrentTalentPoints ?? 0);
+            UpdateTalentPointsUI(TalentManager.Instance?.CurrentGoldCoins ?? 0);
             OnTalentTreeUpdated?.Invoke();
         }
 
@@ -344,6 +344,13 @@ namespace Talents.UI
                 talentPointsText.text = $"Talent Points: {points}";
             }
         }
+        // private void UpdateTalentPointsUI(int points)
+        // {
+        //     if (talentPointsText != null)
+        //     {
+        //         talentPointsText.text = $"Talent Points: {points}";
+        //     }
+        // }
 
         /// <summary>
         /// Handle talent learned event
@@ -385,7 +392,7 @@ namespace Talents.UI
             confirmationCallback = () => {
                 TalentManager.Instance?.ResetAllTalents();
                 UpdateAllNodeStates();
-                UpdateTalentPointsUI(TalentManager.Instance?.CurrentTalentPoints ?? 0);
+                UpdateTalentPointsUI(TalentManager.Instance?.CurrentGoldCoins ?? 0);
             };
         }
 
@@ -458,7 +465,7 @@ namespace Talents.UI
             // Unsubscribe from events
             if (TalentManager.Instance != null)
             {
-                TalentManager.Instance.OnTalentPointsChanged.RemoveListener(UpdateTalentPointsUI);
+                TalentManager.Instance.OnGoldCoinsChanged.RemoveListener(UpdateTalentPointsUI);
                 TalentManager.Instance.OnTalentLearned.RemoveListener(OnTalentLearned);
                 TalentManager.Instance.OnTalentUpgraded.RemoveListener(OnTalentUpgraded);
             }
@@ -502,7 +509,7 @@ namespace Talents.UI
         public void LogTalentTreeState()
         {
             Debug.Log($"[TalentWindow] Active nodes: {activeNodes.Count}, Pooled nodes: {nodePool.Count}");
-            Debug.Log($"[TalentWindow] Talent points: {TalentManager.Instance?.CurrentTalentPoints ?? 0}");
+            Debug.Log($"[TalentWindow] Talent points: {TalentManager.Instance?.CurrentGoldCoins ?? 0}");
         }
     }
 }

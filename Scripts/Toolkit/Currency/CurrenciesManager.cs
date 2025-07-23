@@ -1,26 +1,13 @@
+using TwoSleepyCats.Patterns.Singleton;
 using UnityEngine;
 
 namespace OctoberStudio.Currency
 {
-    public class CurrenciesManager : MonoBehaviour
+    public class CurrenciesManager : MonoSingleton<CurrenciesManager>
     {
-        private static CurrenciesManager instance;
 
         [SerializeField] CurrenciesDatabase database;
 
-        public void Init()
-        {
-            if(instance != null)
-            {
-                Destroy(this);
-
-                return;
-            }
-
-            instance = this;
-
-            DontDestroyOnLoad(gameObject);
-        }
 
         public Sprite GetIcon(string currencyId)
         {
