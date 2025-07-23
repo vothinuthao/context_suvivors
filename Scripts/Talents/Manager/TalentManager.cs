@@ -23,7 +23,7 @@ namespace Talents.Manager
         [SerializeField] private bool unlimitedCurrency = false; 
 
         [Header("Events")]
-        public UnityEvent<int> OnGoldCoinsChanged;
+        public UnityEvent OnGoldCoinsChanged;
         public UnityEvent<TalentModel> OnTalentLearned;
         public UnityEvent<TalentModel> OnTalentUpgraded;
         public UnityEvent<string> OnTalentError;
@@ -33,6 +33,7 @@ namespace Talents.Manager
 
         // Properties
         public int CurrentGoldCoins => currentGoldCoins;
+        public int CurrentOrc => currentOrc;
         public bool IsInitialized { get; private set; }
 
         protected override void Initialize()
@@ -74,17 +75,7 @@ namespace Talents.Manager
                 Debug.LogError("[TalentManager] Failed to initialize talent save");
             }
         }
-
-        /// <summary>
-        /// Load talent points from save data or player progression
-        /// </summary>
-        private void LoadTalentPoints()
-        {
-            currentGoldCoins = GameController.SaveManager.GetSave<CurrencySave>("GoldCoins")?.Amount ?? 0;
-            currentOrc = GameController.SaveManager.GetSave<CurrencySave>("Orc")?.Amount ?? 0;
-            Debug.Log($"[TalentManager] Loaded current gold coins: {currentGoldCoins}");
-            
-        }
+        
 
 
         /// <summary>
@@ -126,18 +117,40 @@ namespace Talents.Manager
             if (currentLevel >= talent.MaxLevel)
                 return false;
 
-            // Check if player has enough talent points
-            var cost = TalentDatabase.Instance.GetTalentCost(talentId, currentLevel + 1);
-            if (!unlimitedCurrency && currentGoldCoins < cost)
+            // Kiểm tra Player Level requirement (thay vì prerequisites)
+            if (!IsPlayerLevelSufficient(talentId))
                 return false;
 
-            // Check prerequisites
-            if (!ArePrerequisitesMet(talentId))
-                return false;
+            // Kiểm tra tiền tệ theo loại talent
+            var cost = TalentDatabase.Instance.GetTalentCost(talentId, currentLevel + 1);
+    
+            if (IsBaseStat(talent))
+            {
+                // Base Stats dùng Gold Coins
+                if (!unlimitedCurrency && currentGoldCoins < cost)
+                    return false;
+            }
+            else if (IsSpecialSkill(talent))
+            {
+                // Special Skills dùng Orc (Gold DNA)
+                if (!unlimitedCurrency && currentOrc < cost)
+                    return false;
+            }
 
             return true;
         }
-
+        private bool IsBaseStat(TalentModel talent)
+        {
+            return talent.StatType == UpgradeType.Damage ||
+                   talent.StatType == UpgradeType.Health ||
+                   talent.NodeType == TalentNodeType.Normal; 
+        }
+        private bool IsSpecialSkill(TalentModel talent)
+        {
+            return talent.NodeType == TalentNodeType.Special;
+        }
+        
+        
         /// <summary>
         /// Check if all prerequisites for a talent are met
         /// </summary>
@@ -158,10 +171,29 @@ namespace Talents.Manager
 
             return true;
         }
+        private bool IsPlayerLevelSufficient(int talentId)
+        {
+            var talent = TalentDatabase.Instance.GetTalentById(talentId);
+            if (talent == null)
+                return false;
 
-        /// <summary>
-        /// Learn or upgrade a talent
-        /// </summary>
+            // Lấy Player Level từ hệ thống game
+            int playerLevel = GetPlayerLevel(); 
+    
+            if (IsBaseStat(talent))
+            {
+                // Base Stats: có thể nâng cấp từ level 1
+                return playerLevel >= 1;
+            }
+            else if (IsSpecialSkill(talent))
+            {
+                // Special Skills: yêu cầu level cụ thể
+                // Ví dụ: Lucky Dog level 3, Rogue level 5, Athlete level 7
+                return playerLevel >= talent.RequiredPlayerLevel; // Cần thêm field này vào TalentModel
+            }
+
+            return false;
+        }
         public bool LearnTalent(int talentId)
         {
             if (!CanLearnTalent(talentId))
@@ -181,12 +213,24 @@ namespace Talents.Manager
             var newLevel = currentLevel + 1;
             var cost = TalentDatabase.Instance.GetTalentCost(talentId, newLevel);
 
-            // Deduct talent points
+            // Trừ tiền tệ đúng loại
             if (!unlimitedCurrency)
             {
-                currentGoldCoins -= cost;
-                PlayerPrefs.SetInt("TalentPoints", currentGoldCoins);
-                OnGoldCoinsChanged?.Invoke(currentGoldCoins);
+                if (IsBaseStat(talent))
+                {
+                    currentGoldCoins -= cost;
+                    var goldSave = GameController.SaveManager.GetSave<CurrencySave>("GoldCoins");
+                    goldSave?.Withdraw(cost);
+                    OnGoldCoinsChanged?.Invoke();
+                }
+                else if (IsSpecialSkill(talent))
+                {
+                    // Trừ Orc cho Special Skills
+                    currentOrc -= cost;
+                    var orcSave = GameController.SaveManager.GetSave<CurrencySave>("Orc");
+                    orcSave?.Withdraw(cost);
+                    // Cần thêm event OnOrcChanged
+                }
             }
 
             // Update talent level
@@ -210,48 +254,26 @@ namespace Talents.Manager
             return true;
         }
 
-        /// <summary>
-        /// Reset a specific talent (refund points)
-        /// </summary>
-        public bool ResetTalent(int talentId)
+        // 6. Thêm hàm lấy Player Level (cần implement)
+        private int GetPlayerLevel()
         {
-            if (!IsInitialized)
-                return false;
-
-            var currentLevel = GetTalentLevel(talentId);
-            if (currentLevel == 0)
-                return false;
-
-            var talent = TalentDatabase.Instance.GetTalentById(talentId);
-            if (talent == null)
-                return false;
-
-            // Calculate refund amount
-            int refundAmount = 0;
-            for (int level = 1; level <= currentLevel; level++)
-            {
-                refundAmount += TalentDatabase.Instance.GetTalentCost(talentId, level);
-            }
-
-            // Check if any talents depend on this one
-            var dependentTalents = TalentDatabase.Instance.GetTalentUnlocks(talentId);
-            foreach (var depId in dependentTalents)
-            {
-                if (IsTalentLearned(depId))
-                {
-                    OnTalentError?.Invoke($"Cannot reset talent - other talents depend on it");
-                    return false;
-                }
-            }
-
-            // Reset the talent
-            talentSave.RemoveTalent(talentId);
-            UpdatePlayerStats();
-
-            Debug.Log($"[TalentManager] Reset talent: {talent.Name} (Refunded {refundAmount} points)");
-            return true;
+            // TODO: Implement logic lấy player level từ PlayerBehavior hoặc GameController
+            // Tạm thời return level cao để test
+            return  10;
         }
 
+        // ReSharper disable Unity.PerformanceAnalysis
+        private void LoadTalentPoints()
+        {
+            var goldSave = GameController.SaveManager.GetSave<CurrencySave>("GoldCoins");
+            var orcSave = GameController.SaveManager.GetSave<CurrencySave>("Orc");
+            
+            currentGoldCoins = goldSave?.Amount ?? 0;
+            currentOrc = orcSave?.Amount ?? 0;
+            
+            Debug.Log($"[TalentManager] Loaded currencies - Gold: {currentGoldCoins}, Orc: {currentOrc}");
+        }
+        
         /// <summary>
         /// Reset all talents
         /// </summary>
@@ -376,7 +398,6 @@ namespace Talents.Manager
             if (currentLevel > 0)
                 return TalentUnlockStatus.Learned;
 
-            // Check prerequisites
             if (!ArePrerequisitesMet(talentId))
                 return TalentUnlockStatus.Locked;
 

@@ -1,4 +1,5 @@
-﻿using OctoberStudio.Upgrades;
+﻿using System.Globalization;
+using OctoberStudio.Upgrades;
 using TwoSleepyCats.CSVReader.Attributes;
 using TwoSleepyCats.CSVReader.Core;
 using UnityEngine;
@@ -33,12 +34,15 @@ namespace Talents.Data
         
         [CsvColumn("max_level")] public int MaxLevel { get; set; } = 1;
         
+        [CsvColumn("required_player_level", isOptional: true)]
+        public int RequiredPlayerLevel { get; set; } = 1;
+        
         // Parsed properties
         [CsvIgnore]
-        public UpgradeType StatType { get; private set; }
+        public UpgradeType StatType { get; set; }
         
         [CsvIgnore]
-        public TalentNodeType NodeType { get; private set; }
+        public TalentNodeType NodeType { get; set; }
         
         private Sprite _icon;
         
@@ -58,7 +62,17 @@ namespace Talents.Data
                 _icon = value;
             }
         }
+        [CsvIgnore]
+        public bool IsBaseStat =>
+            StatType == UpgradeType.Damage ||    // ATK
+            StatType == UpgradeType.Health ||     // HP
+            StatTypeString.ToLower().Contains("armor") ||
+            StatTypeString.ToLower().Contains("healing");
         
+        [CsvIgnore]
+        public bool IsSpecialSkill => NodeType == TalentNodeType.Special || !IsBaseStat;
+        
+       
         [CsvIgnore]
         public Vector2 Position => new Vector2(PositionX, PositionY);
         
@@ -95,7 +109,33 @@ namespace Talents.Data
             
             // Don't load icon here - will be loaded lazily on main thread
         }
-
+        public BaseStatType? GetBaseStatType()
+        {
+            if (!IsBaseStat) return null;
+    
+            switch (StatType)
+            {
+                case UpgradeType.Damage:
+                    return BaseStatType.ATK;
+                case UpgradeType.Health:
+                    return BaseStatType.HP;
+                default:
+                    if (StatTypeString.ToLower().Contains("armor"))
+                        return BaseStatType.Armor;
+                    if (StatTypeString.ToLower().Contains("healing"))
+                        return BaseStatType.Healing;
+                    return null;
+            }
+        }
+        public string GetCurrencyType()
+        {
+            if (IsBaseStat)
+                return "gold";
+            else if (IsSpecialSkill)
+                return "orc"; //  orc currency for special skills
+    
+            return "gold"; // Default
+        }
         /// <summary>
         /// Parse custom stat types that might not be in UpgradeType
         /// </summary>
@@ -186,7 +226,6 @@ namespace Talents.Data
         /// </summary>
         private void LoadIcon()
         {
-            // Check if we're on main thread
             if (!UnityEngine.Application.isPlaying)
             {
                 return;
@@ -200,32 +239,34 @@ namespace Talents.Data
 
             try
             {
-                // Try to load from Resources folder first
                 _icon = Resources.Load<Sprite>($"Icons/Talents/{IconPath}");
-                
+        
                 if (_icon == null)
                 {
-                    // Try alternative path
-                    _icon = Resources.Load<Sprite>($"Talents/{IconPath}");
-                }
-                
-                if (_icon == null)
-                {
-                    // Try direct path
-                    _icon = Resources.Load<Sprite>(IconPath);
-                }
-                
-                if (_icon == null)
-                {
-                    Debug.LogWarning($"[TalentModel] Could not load icon for talent {Name} at path: {IconPath}");
-                    
-                    // Try to load a default icon
+                    Debug.LogWarning($"[TalentModel] Could not load icon for talent {Name} at path: Icons/Talents/{IconPath}");
                     _icon = Resources.Load<Sprite>("Icons/Talents/default_talent");
+            
+                    if (_icon == null)
+                    {
+                        Debug.LogError($"[TalentModel] Default talent icon not found at: Icons/Talents/default_talent");
+                    }
+                }
+                else
+                {
+                    Debug.Log($"[TalentModel] Successfully loaded icon for {Name}: Icons/Talents/{IconPath}");
                 }
             }
             catch (System.Exception ex)
             {
-                Debug.LogWarning($"[TalentModel] Failed to load icon for talent {Name}: {ex.Message}");
+                Debug.LogError($"[TalentModel] Failed to load icon for talent {Name}: {ex.Message}");
+                try
+                {
+                    _icon = Resources.Load<Sprite>("Icons/Talents/default_talent");
+                }
+                catch
+                {
+                    Debug.LogError("[TalentModel] Could not load default talent icon");
+                }
             }
         }
 
@@ -285,7 +326,16 @@ namespace Talents.Data
         {
             if (level <= 0 || level > MaxLevel)
                 return 0;
-            
+    
+            if (IsBaseStat)
+            {
+                return Cost * level;
+            }
+            else if (IsSpecialSkill)
+            {
+                return Cost;
+            }
+    
             return Cost * level;
         }
 
@@ -368,13 +418,27 @@ namespace Talents.Data
         public string GetFormattedDescription(int level = 1)
         {
             var desc = Description;
-            
-            // Replace placeholders with actual values
-            desc = desc.Replace("{value}", StatValue.ToString());
-            desc = desc.Replace("{total}", GetEffectivenessAtLevel(level).ToString("F1"));
-            desc = desc.Replace("{level}", level.ToString());
-            desc = desc.Replace("{max_level}", MaxLevel.ToString());
-            
+    
+            if (IsBaseStat)
+            {
+                desc = desc.Replace("{value}", StatValue.ToString(CultureInfo.InvariantCulture));
+                desc = desc.Replace("{total}", GetEffectivenessAtLevel(level).ToString("F1"));
+                desc = desc.Replace("{level}", level.ToString());
+                desc = desc.Replace("{max_level}", MaxLevel.ToString());
+        
+                var baseStatType = GetBaseStatType();
+                if (baseStatType.HasValue)
+                {
+                    desc += $"\n\nBase Stat: {baseStatType.Value}";
+                    desc += $"\nProgress: {level}/{MaxLevel}";
+                }
+            }
+            else if (IsSpecialSkill)
+            {
+                desc += $"\n\nUnlock at Player Level: {RequiredPlayerLevel}";
+                desc += $"\nType: Passive Ability";
+            }
+    
             return desc;
         }
 
@@ -420,19 +484,20 @@ namespace Talents.Data
 
         public bool ValidateData()
         {
-            bool isValid = ID > 0 && 
-                          !string.IsNullOrEmpty(Name) && 
-                          !string.IsNullOrEmpty(Description) &&
-                          Cost > 0 && 
-                          MaxLevel > 0 &&
-                          StatValue >= 0;
-            
-            if (!isValid)
+            bool baseValid = ID > 0 && 
+                             !string.IsNullOrEmpty(Name) && 
+                             !string.IsNullOrEmpty(Description) &&
+                             Cost > 0 && 
+                             MaxLevel > 0 &&
+                             StatValue >= 0;
+    
+            if (!baseValid) return false;
+            if (RequiredPlayerLevel < 1)
             {
-                Debug.LogError($"[TalentModel] Invalid data - ID: {ID}, Name: '{Name}', Cost: {Cost}, MaxLevel: {MaxLevel}");
+                RequiredPlayerLevel = 1;
             }
-            
-            return isValid;
+    
+            return true;
         }
 
         public override string ToString()
@@ -471,5 +536,12 @@ namespace Talents.Data
         Defensive,
         Mobility,
         Utility
+    }
+    public enum BaseStatType
+    {
+        ATK,        // Damage
+        HP,         // Health  
+        Armor,      // Defense
+        Healing     // Health Regeneration
     }
 }

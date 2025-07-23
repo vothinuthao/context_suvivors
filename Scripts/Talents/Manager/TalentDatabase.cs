@@ -32,10 +32,16 @@ namespace Talents.Manager
         // Talent tree structure
         private Dictionary<int, List<int>> talentDependencies = new Dictionary<int, List<int>>();
         private Dictionary<int, List<int>> talentUnlocks = new Dictionary<int, List<int>>();
+        
+        private List<TalentModel> baseStatsTalents = new List<TalentModel>();
+        private List<TalentModel> specialSkillsTalents = new List<TalentModel>();
 
         // Events
         public event System.Action OnDataLoaded;
         public event System.Action<string> OnLoadingError;
+        
+        public List<TalentModel> BaseStatsTalents => baseStatsTalents;
+        public List<TalentModel> SpecialSkillsTalents => specialSkillsTalents;
 
         // Properties
         public bool IsDataLoaded => isDataLoaded;
@@ -126,15 +132,17 @@ namespace Talents.Manager
                     // Add to main collections
                     allTalents.Add(talent);
                     talentsById[talent.ID] = talent;
-                    
-                    // Sort by node type
-                    if (talent.NodeType == TalentNodeType.Normal)
+            
+                    // Phân loại theo logic mới
+                    if (talent.IsBaseStat)
                     {
-                        normalTalents.Add(talent);
+                        baseStatsTalents.Add(talent);
+                        normalTalents.Add(talent); // Giữ cho backward compatibility
                     }
-                    else if (talent.NodeType == TalentNodeType.Special)
+                    else if (talent.IsSpecialSkill)
                     {
-                        specialTalents.Add(talent);
+                        specialSkillsTalents.Add(talent);
+                        specialTalents.Add(talent); // Giữ cho backward compatibility
                     }
                 }
                 else
@@ -143,15 +151,16 @@ namespace Talents.Manager
                 }
             }
 
-            // Build dependency tree
+            // Build dependency tree (giữ nguyên cho special skills nếu cần)
             BuildDependencyTree();
 
-            // Sort talents by position
-            SortTalentsByPosition();
+            // Sort talents
+            SortTalentsByType();
 
             totalTalentCount = allTalents.Count;
-            
-            Debug.Log($"[TalentDatabase] Processed {totalTalentCount} talents ({normalTalents.Count} normal, {specialTalents.Count} special)");
+    
+            Debug.Log($"[TalentDatabase] Processed {totalTalentCount} talents " +
+                      $"({baseStatsTalents.Count} base stats, {specialSkillsTalents.Count} special skills)");
         }
 
         /// <summary>
@@ -186,13 +195,30 @@ namespace Talents.Manager
         /// <summary>
         /// Sort talents by their position for proper display order
         /// </summary>
-        private void SortTalentsByPosition()
+        private void SortTalentsByType()
         {
-            // Sort normal talents by Y position (top to bottom)
-            normalTalents.Sort((a, b) => a.PositionY.CompareTo(b.PositionY));
-            
-            // Sort special talents by Y position (top to bottom)
-            specialTalents.Sort((a, b) => a.PositionY.CompareTo(b.PositionY));
+            // Sort Base Stats theo thứ tự: ATK, HP, Armor, Healing
+            baseStatsTalents.Sort((a, b) => {
+                var orderA = GetBaseStatOrder(a);
+                var orderB = GetBaseStatOrder(b);
+                return orderA.CompareTo(orderB);
+            });
+    
+            specialSkillsTalents.Sort((a, b) => a.RequiredPlayerLevel.CompareTo(b.RequiredPlayerLevel));
+        }
+        private int GetBaseStatOrder(TalentModel talent)
+        {
+            var baseStatType = talent.GetBaseStatType();
+            if (!baseStatType.HasValue) return 999;
+    
+            switch (baseStatType.Value)
+            {
+                case BaseStatType.ATK: return 0;
+                case BaseStatType.HP: return 1;
+                case BaseStatType.Armor: return 2;
+                case BaseStatType.Healing: return 3;
+                default: return 999;
+            }
         }
 
         /// <summary>
@@ -203,12 +229,47 @@ namespace Talents.Manager
             allTalents.Clear();
             normalTalents.Clear();
             specialTalents.Clear();
+            baseStatsTalents.Clear();      // Thêm
+            specialSkillsTalents.Clear();  // Thêm
             talentsById.Clear();
             talentDependencies.Clear();
             talentUnlocks.Clear();
             totalTalentCount = 0;
         }
+        /// <summary>
+        /// Get Base Stat talent by type
+        /// </summary>
+        public TalentModel GetBaseStatTalent(BaseStatType statType)
+        {
+            return baseStatsTalents.FirstOrDefault(t => t.GetBaseStatType() == statType);
+        }
 
+        /// <summary>
+        /// Get all Base Stats talents ordered by type
+        /// </summary>
+        public List<TalentModel> GetOrderedBaseStats()
+        {
+            return baseStatsTalents.OrderBy(GetBaseStatOrder).ToList();
+        }
+
+        /// <summary>
+        /// Get Special Skills available for player level
+        /// </summary>
+        public List<TalentModel> GetAvailableSpecialSkills(int playerLevel)
+        {
+            return specialSkillsTalents.Where(t => t.RequiredPlayerLevel <= playerLevel).ToList();
+        }
+
+        /// <summary>
+        /// Get next Special Skill to unlock
+        /// </summary>
+        public TalentModel GetNextSpecialSkill(int playerLevel)
+        {
+            return specialSkillsTalents
+                .Where(t => t.RequiredPlayerLevel > playerLevel)
+                .OrderBy(t => t.RequiredPlayerLevel)
+                .FirstOrDefault();
+        }
         /// <summary>
         /// Get talent by ID
         /// </summary>
@@ -292,10 +353,58 @@ namespace Talents.Manager
             var talent = GetTalentById(talentId);
             if (talent == null) return 0;
 
-            // Cost increases with level
+            if (talent.IsBaseStat)
+            {
+                return talent.Cost * targetLevel;
+            }
+            else if (talent.IsSpecialSkill)
+            {
+                return talent.Cost;
+            }
+
             return talent.Cost * targetLevel;
         }
-
+        /// <summary>
+        /// Validate talent tree structure
+        /// </summary>
+        public bool ValidateTalentTree()
+        {
+            bool isValid = true;
+    
+            // Check Base Stats
+            var expectedBaseStats = new[] { 
+                BaseStatType.ATK, 
+                BaseStatType.HP, 
+                BaseStatType.Armor, 
+                BaseStatType.Healing 
+            };
+    
+            foreach (var expectedStat in expectedBaseStats)
+            {
+                var talent = GetBaseStatTalent(expectedStat);
+                if (talent == null)
+                {
+                    Debug.LogError($"[TalentDatabase] Missing Base Stat: {expectedStat}");
+                    isValid = false;
+                }
+            }
+    
+            // Check Special Skills có level requirements hợp lý
+            foreach (var skill in specialSkillsTalents)
+            {
+                if (skill.RequiredPlayerLevel < 1 || skill.RequiredPlayerLevel > 100)
+                {
+                    Debug.LogWarning($"[TalentDatabase] Unusual player level requirement for {skill.Name}: {skill.RequiredPlayerLevel}");
+                }
+        
+                if (skill.MaxLevel > 1)
+                {
+                    Debug.LogWarning($"[TalentDatabase] Special Skill {skill.Name} has MaxLevel > 1: {skill.MaxLevel}");
+                }
+            }
+    
+            return isValid;
+        }
         /// <summary>
         /// Check if talent has prerequisites
         /// </summary>
@@ -314,10 +423,11 @@ namespace Talents.Manager
 
             var info = $"=== TALENT TREE INFO ===\n";
             info += $"Total Talents: {totalTalentCount}\n";
-            info += $"Normal Talents: {normalTalents.Count}\n";
-            info += $"Special Talents: {specialTalents.Count}\n";
+            info += $"Base Stats: {baseStatsTalents.Count}\n";
+            info += $"Special Skills: {specialSkillsTalents.Count}\n";
             info += $"Dependencies: {talentDependencies.Count}\n";
             info += $"Unlock Chains: {talentUnlocks.Count}\n";
+            info += $"Structure Valid: {ValidateTalentTree()}\n";
 
             return info;
         }
