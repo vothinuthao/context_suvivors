@@ -1,51 +1,51 @@
 id,icon,name,description,stat_value,stat_type,node_type,position_x,position_y,required_talent_id,cost,max_level,required_player_level
-1,atk_icon,Attack,Increase base attack damage,2,Damage,Normal,-200,50,-1,100,10,1
-2,armor_icon,Defense,Reduce incoming damage,1.5,Damage,Normal,-200,500,-1,110,10,2
-3,speed_icon,Speed,Increase movement speed,0.05,Speed,Normal,-200,950,-1,120,10,3
-4,healing_icon,Healing,Increase health regeneration,1,Health,Normal,-200,1400,-1,130,10,4
-5,atk_icon,Attack II,Increase base attack damage,3,Damage,Normal,-200,1850,-1,140,10,5
-6,armor_icon,Defense II,Reduce incoming damage,2,Damage,Normal,-200,2300,-1,150,10,6
-7,speed_icon,Speed II,Increase movement speed,0.07,Speed,Normal,-200,2750,-1,160,10,7
-8,healing_icon,Healing II,Increase health regeneration,1.5,Health,Normal,-200,3200,-1,170,10,8
-9,atk_icon,Attack III,Increase base attack damage,4,Damage,Normal,-200,3650,-1,180,10,9
-10,armor_icon,Defense III,Reduce incoming damage,2.5,Damage,Normal,-200,4100,-1,190,10,10
-11,speed_icon,Speed III,Increase movement speed,0.08,Speed,Normal,-200,4550,-1,200,10,11
-12,healing_icon,Healing III,Increase health regeneration,2,Health,Normal,-200,5000,-1,210,10,12
-13,atk_icon,Attack IV,Increase base attack damage,5,Damage,Normal,-200,5450,-1,220,10,13
-14,armor_icon,Defense IV,Reduce incoming damage,3,Damage,Normal,-200,5900,-1,230,10,14
-15,speed_icon,Speed IV,Increase movement speed,0.1,Speed,Normal,-200,6350,-1,240,10,15
-16,healing_icon,Healing IV,Increase health regeneration,2.5,Health,Normal,-200,6800,-1,250,10,16
-17,atk_icon,Attack V,Increase base attack damage,6,Damage,Normal,-200,7250,-1,260,10,17
-18,armor_icon,Defense V,Reduce incoming damage,3.5,Damage,Normal,-200,7700,-1,270,10,18
-19,speed_icon,Speed V,Increase movement speed,0.12,Speed,Normal,-200,8150,-1,280,10,19
-20,healing_icon,Healing V,Increase health regeneration,3,Health,Normal,-200,8600,-1,290,10,20
-21,atk_icon,Attack VI,Increase base attack damage,7,Damage,Normal,-200,9050,-1,300,10,21
-22,armor_icon,Defense VI,Reduce incoming damage,4,Damage,Normal,-200,9500,-1,310,10,22
-23,speed_icon,Speed VI,Increase movement speed,0.15,Speed,Normal,-200,9950,-1,320,10,23
-24,healing_icon,Healing VI,Increase health regeneration,3.5,Health,Normal,-200,10400,-1,330,10,24
-25,atk_icon,Attack VII,Increase base attack damage,8,Damage,Normal,-200,10850,-1,340,10,25
-26,armor_icon,Defense VII,Reduce incoming damage,4.5,Damage,Normal,-200,11300,-1,350,10,26
-27,speed_icon,Speed VII,Increase movement speed,0.17,Speed,Normal,-200,11750,-1,360,10,27
-28,healing_icon,Healing VII,Increase health regeneration,4,Health,Normal,-200,12200,-1,370,10,28
-29,atk_icon,Attack VIII,Increase base attack damage,9,Damage,Normal,-200,12650,-1,380,10,29
-30,armor_icon,Defense VIII,Reduce incoming damage,5,Damage,Normal,-200,13100,-1,390,10,30
-31,speed_icon,Speed VIII,Increase movement speed,0.2,Speed,Normal,-200,13550,-1,400,10,31
-32,healing_icon,Healing VIII,Increase health regeneration,4.5,Health,Normal,-200,14000,-1,410,10,32
-33,atk_icon,Attack IX,Increase base attack damage,10,Damage,Normal,-200,14450,-1,420,10,33
-34,armor_icon,Defense IX,Reduce incoming damage,5.5,Damage,Normal,-200,14900,-1,430,10,34
-35,speed_icon,Speed IX,Increase movement speed,0.22,Speed,Normal,-200,15350,-1,440,10,35
-36,healing_icon,Healing IX,Increase health regeneration,5,Health,Normal,-200,15800,-1,450,10,36
-37,atk_icon,Attack X,Increase base attack damage,12,Damage,Normal,-200,16250,-1,460,10,37
-38,armor_icon,Defense X,Reduce incoming damage,6,Damage,Normal,-200,16700,-1,470,10,38
-39,speed_icon,Speed X,Increase movement speed,0.25,Speed,Normal,-200,17150,-1,480,10,39
-40,healing_icon,Healing X,Increase health regeneration,6,Health,Normal,-200,17600,-1,490,10,40
-41,atk_icon,Attack XI,Increase base attack damage,14,Damage,Normal,-200,18050,-1,500,10,41
-42,armor_icon,Defense XI,Reduce incoming damage,7,Damage,Normal,-200,18500,-1,510,10,42
-43,speed_icon,Speed XI,Increase movement speed,0.27,Speed,Normal,-200,18950,-1,520,10,43
-44,healing_icon,Healing XI,Increase health regeneration,7,Health,Normal,-200,19400,-1,530,10,44
-45,atk_icon,Attack XII,Increase base attack damage,16,Damage,Normal,-200,19850,-1,540,10,45
-46,armor_icon,Defense XII,Reduce incoming damage,8,Damage,Normal,-200,20300,-1,550,10,46
-47,speed_icon,Speed XII,Increase movement speed,0.3,Speed,Normal,-200,20750,-1,560,10,47
-48,healing_icon,Healing XII,Increase health regeneration,8,Health,Normal,-200,21200,-1,570,10,48
-49,atk_icon,Attack XIII,Increase base attack damage,18,Damage,Normal,-200,21650,-1,580,10,49
-50,armor_icon,Defense XIII,Reduce incoming damage,9,Damage,Normal,-200,22100,-1,590,10,50
+1,atk_icon,Attack,Increase base attack damage,2,Damage,Normal,-200,50,-1,110,10,1
+2,armor_icon,Defense,Reduce incoming damage,1.5,Damage,Normal,-200,500,-1,120,10,2
+3,speed_icon,Speed,Increase movement speed,0.05,Speed,Normal,-200,950,-1,130,10,3
+4,healing_icon,Healing,Increase health regeneration,1,Health,Normal,-200,1400,-1,140,10,4
+5,atk_icon,Attack II,Increase base attack damage,3,Damage,Normal,-200,1850,-1,150,10,5
+6,armor_icon,Defense II,Reduce incoming damage,2,Damage,Normal,-200,2300,-1,160,10,6
+7,speed_icon,Speed II,Increase movement speed,0.07,Speed,Normal,-200,2750,-1,170,10,7
+8,healing_icon,Healing II,Increase health regeneration,1.5,Health,Normal,-200,3200,-1,180,10,8
+9,atk_icon,Attack III,Increase base attack damage,4,Damage,Normal,-200,3650,-1,190,10,9
+10,armor_icon,Defense III,Reduce incoming damage,2.5,Damage,Normal,-200,4100,-1,200,10,10
+11,speed_icon,Speed III,Increase movement speed,0.08,Speed,Normal,-200,4550,-1,210,10,11
+12,healing_icon,Healing III,Increase health regeneration,2,Health,Normal,-200,5000,-1,220,10,12
+13,atk_icon,Attack IV,Increase base attack damage,5,Damage,Normal,-200,5450,-1,230,10,13
+14,armor_icon,Defense IV,Reduce incoming damage,3,Damage,Normal,-200,5900,-1,240,10,14
+15,speed_icon,Speed IV,Increase movement speed,0.1,Speed,Normal,-200,6350,-1,250,10,15
+16,healing_icon,Healing IV,Increase health regeneration,2.5,Health,Normal,-200,6800,-1,260,10,16
+17,atk_icon,Attack V,Increase base attack damage,6,Damage,Normal,-200,7250,-1,270,10,17
+18,armor_icon,Defense V,Reduce incoming damage,3.5,Damage,Normal,-200,7700,-1,280,10,18
+19,speed_icon,Speed V,Increase movement speed,0.12,Speed,Normal,-200,8150,-1,290,10,19
+20,healing_icon,Healing V,Increase health regeneration,3,Health,Normal,-200,8600,-1,300,10,20
+21,atk_icon,Attack VI,Increase base attack damage,7,Damage,Normal,-200,9050,-1,310,10,21
+22,armor_icon,Defense VI,Reduce incoming damage,4,Damage,Normal,-200,9500,-1,320,10,22
+23,speed_icon,Speed VI,Increase movement speed,0.15,Speed,Normal,-200,9950,-1,330,10,23
+24,healing_icon,Healing VI,Increase health regeneration,3.5,Health,Normal,-200,10400,-1,340,10,24
+25,atk_icon,Attack VII,Increase base attack damage,8,Damage,Normal,-200,10850,-1,350,10,25
+26,armor_icon,Defense VII,Reduce incoming damage,4.5,Damage,Normal,-200,11300,-1,360,10,26
+27,speed_icon,Speed VII,Increase movement speed,0.17,Speed,Normal,-200,11750,-1,370,10,27
+28,healing_icon,Healing VII,Increase health regeneration,4,Health,Normal,-200,12200,-1,380,10,28
+29,atk_icon,Attack VIII,Increase base attack damage,9,Damage,Normal,-200,12650,-1,390,10,29
+30,armor_icon,Defense VIII,Reduce incoming damage,5,Damage,Normal,-200,13100,-1,400,10,30
+31,speed_icon,Speed VIII,Increase movement speed,0.2,Speed,Normal,-200,13550,-1,410,10,31
+32,healing_icon,Healing VIII,Increase health regeneration,4.5,Health,Normal,-200,14000,-1,420,10,32
+33,atk_icon,Attack IX,Increase base attack damage,10,Damage,Normal,-200,14450,-1,430,10,33
+34,armor_icon,Defense IX,Reduce incoming damage,5.5,Damage,Normal,-200,14900,-1,440,10,34
+35,speed_icon,Speed IX,Increase movement speed,0.22,Speed,Normal,-200,15350,-1,450,10,35
+36,healing_icon,Healing IX,Increase health regeneration,5,Health,Normal,-200,15800,-1,460,10,36
+37,atk_icon,Attack X,Increase base attack damage,12,Damage,Normal,-200,16250,-1,470,10,37
+38,armor_icon,Defense X,Reduce incoming damage,6,Damage,Normal,-200,16700,-1,480,10,38
+39,speed_icon,Speed X,Increase movement speed,0.25,Speed,Normal,-200,17150,-1,490,10,39
+40,healing_icon,Healing X,Increase health regeneration,6,Health,Normal,-200,17600,-1,500,10,40
+41,atk_icon,Attack XI,Increase base attack damage,14,Damage,Normal,-200,18050,-1,510,10,41
+42,armor_icon,Defense XI,Reduce incoming damage,7,Damage,Normal,-200,18500,-1,520,10,42
+43,speed_icon,Speed XI,Increase movement speed,0.27,Speed,Normal,-200,18950,-1,530,10,43
+44,healing_icon,Healing XI,Increase health regeneration,7,Health,Normal,-200,19400,-1,540,10,44
+45,atk_icon,Attack XII,Increase base attack damage,16,Damage,Normal,-200,19850,-1,550,10,45
+46,armor_icon,Defense XII,Reduce incoming damage,8,Damage,Normal,-200,20300,-1,560,10,46
+47,speed_icon,Speed XII,Increase movement speed,0.3,Speed,Normal,-200,20750,-1,570,10,47
+48,healing_icon,Healing XII,Increase health regeneration,8,Health,Normal,-200,21200,-1,580,10,48
+49,atk_icon,Attack XIII,Increase base attack damage,18,Damage,Normal,-200,21650,-1,590,10,49
+50,armor_icon,Defense XIII,Reduce incoming damage,9,Damage,Normal,-200,22100,-1,600,10,50
