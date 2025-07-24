@@ -23,13 +23,10 @@ namespace Talents.Manager
         [SerializeField] private int baseCost = 50;
         [SerializeField] private float costGrowthRate = 1.1f;
         
-        [Header("Layout Settings")]
-        [SerializeField] private float leftColumnX = -200f;   // Normal stats column
-        [SerializeField] private float rightColumnX = 200f;   // Special skills column
-        [SerializeField] private float normalNodeSpacing = 400f;    // 4 nodes visible
-        [SerializeField] private float specialNodeSpacing = 450f;  // Spacing for special skills
-        [SerializeField] private float tierSpacing = 100f;         // Extra spacing between tiers
-        [SerializeField] private float startY = 0f;                // Start from center (no offset)
+        [Header("Mobile Layout Settings")]
+        [SerializeField] private float nodeSpacing = 450f;         // Mobile-optimized: 4 nodes visible (1800px ÷ 4)
+        [SerializeField] private float positionX = 0f;             // Single column: center aligned
+        [SerializeField] private float startY = 0f;               // Start from bottom
         
         [Header("Debug Info")]
         [SerializeField, ReadOnly] private int totalTalentCount = 0;
@@ -38,17 +35,15 @@ namespace Talents.Manager
 
         // Talent collections
         private Dictionary<int, TalentModel> talentsById = new Dictionary<int, TalentModel>();
-        private List<TalentModel> normalTalents = new List<TalentModel>();
-        private List<TalentModel> specialTalents = new List<TalentModel>();
+        private List<TalentModel> linearTalents = new List<TalentModel>();
         private List<TalentModel> allTalents = new List<TalentModel>();
         
-        // Auto-generated normal stats pattern
-        private readonly BaseStatType[] statPattern = { 
-            BaseStatType.ATK, 
-            BaseStatType.HP, 
-            BaseStatType.Armor, 
-            BaseStatType.Healing 
-        };
+        // Linear progression stat rotation pattern: ATK → DEF → Speed → Heal
+        private readonly string[] statRotation = { "ATK", "DEF", "Speed", "Heal" };
+        private readonly string[] statIcons = { "damage_talent", "titan_talent", "speed_talent", "phoenix_talent" };
+        
+        // Stat formulas from CSV (base_value, multiplier, cost_base, cost_per_level)
+        private Dictionary<string, StatFormula> statFormulas = new Dictionary<string, StatFormula>();
 
         // Events
         public event System.Action OnDataLoaded;
@@ -57,8 +52,7 @@ namespace Talents.Manager
         // Properties
         public bool IsDataLoaded => isDataLoaded;
         public int TotalTalentCount => totalTalentCount;
-        public List<TalentModel> NormalTalents => normalTalents;
-        public List<TalentModel> SpecialTalents => specialTalents;
+        public List<TalentModel> LinearTalents => linearTalents;
 
         protected override void Initialize()
         {
@@ -67,6 +61,7 @@ namespace Talents.Manager
             // Set mobile-optimized spacing by default
             SetMobileSpacing();
             
+            LoadStatFormulas();
             LoadTalentData();
         }
 
@@ -79,25 +74,13 @@ namespace Talents.Manager
         {
             loadStatus = "Loading...";
 
-            // Load special skills from CSV - yield OUTSIDE of try/catch
-            var loadTask = CsvDataManager.Instance.LoadAsync<TalentModel>();
-            yield return new WaitUntil(() => loadTask.IsCompleted);
-
-            // Handle the result in try/catch (no yield statements here)
+            // Generate linear talent progression
             try
             {
-                if (loadTask.Exception != null)
-                {
-                    throw loadTask.Exception.GetBaseException();
-                }
-
-                var specialSkillsData = loadTask.Result;
-                
-                // Process all talent data
-                ProcessTalentData(specialSkillsData);
+                ProcessTalentData();
                 
                 isDataLoaded = true;
-                loadStatus = $"Loaded {totalTalentCount} talents";
+                loadStatus = $"Loaded {totalTalentCount} linear talents";
                 OnDataLoaded?.Invoke();
             }
             catch (Exception ex)
@@ -107,86 +90,94 @@ namespace Talents.Manager
                 OnLoadingError?.Invoke(ex.Message);
                 Debug.LogError($"[TalentDatabase] Failed to load: {ex.Message}");
             }
+            
+            yield break;
         }
 
         /// <summary>
-        /// Process and organize talent data - auto-generate normal stats + load special skills
+        /// Load stat formulas from configuration
         /// </summary>
-        private void ProcessTalentData(List<TalentModel> specialSkillsData)
+        private void LoadStatFormulas()
+        {
+            // Default stat formulas matching the CSV specification
+            statFormulas["ATK"] = new StatFormula { baseValue = 10f, multiplier = 2f, costBase = 100, costPerLevel = 10 };
+            statFormulas["DEF"] = new StatFormula { baseValue = 5f, multiplier = 1.5f, costBase = 100, costPerLevel = 10 };
+            statFormulas["Speed"] = new StatFormula { baseValue = 0.1f, multiplier = 0.05f, costBase = 100, costPerLevel = 10 };
+            statFormulas["Heal"] = new StatFormula { baseValue = 2f, multiplier = 1f, costBase = 100, costPerLevel = 10 };
+        }
+
+        /// <summary>
+        /// Process and organize talent data - generate linear progression system
+        /// </summary>
+        private void ProcessTalentData()
         {
             ClearData();
 
-            // 1. Auto-generate normal stats
-            GenerateNormalStats();
-
-            // 2. Process special skills from CSV
-            ProcessSpecialSkills(specialSkillsData);
-
-            // 3. Combine and finalize
-            CombineAllTalents();
+            // Generate linear progression (50 levels)
+            GenerateLinearProgression();
             
+            // Finalize
+            allTalents.AddRange(linearTalents);
             totalTalentCount = allTalents.Count;
         }
 
         /// <summary>
-        /// Auto-generate normal stats based on pattern and player levels
+        /// Generate linear progression: 1 stat boost per level, rotating ATK→DEF→Speed→Heal every 4 levels
         /// </summary>
-        private void GenerateNormalStats()
+        private void GenerateLinearProgression()
         {
-            int normalStatId = 1; // Start from ID 1
-            float currentY = startY; // Start from bottom
+            linearTalents.Clear();
 
-            // Generate stats for each "cycle" based on max player level
-            int cycles = Mathf.CeilToInt((float)maxPlayerLevel / statPattern.Length);
-            
-            for (int cycle = 0; cycle < cycles; cycle++)
+            for (int level = 1; level <= maxPlayerLevel; level++)
             {
-                for (int i = 0; i < statPattern.Length; i++)
+                // Stat rotation every 4 levels: ATK → DEF → Speed → Heal
+                int statIndex = (level - 1) % 4;
+                string currentStat = statRotation[statIndex];
+                string iconPath = statIcons[statIndex];
+
+                // Get stat formula
+                if (!statFormulas.TryGetValue(currentStat, out var formula))
                 {
-                    var statType = statPattern[i];
-                    int level = cycle + 1;
-                    
-                    // Stop if we exceed max player level
-                    int requiredPlayerLevel = (cycle * statPattern.Length) + i + 1;
-                    if (requiredPlayerLevel > maxPlayerLevel) break;
-
-                    var normalStat = CreateNormalStat(normalStatId, statType, level, currentY, requiredPlayerLevel);
-                    normalTalents.Add(normalStat);
-                    talentsById[normalStatId] = normalStat;
-
-                    normalStatId++;
-                    currentY += normalNodeSpacing; // Use specific spacing for normal stats
-                    
-                    // Add extra spacing between complete cycles (tiers)
-                    if (i == statPattern.Length - 1 && cycle < cycles - 1)
-                    {
-                        currentY += tierSpacing;
-                    }
+                    Debug.LogError($"[TalentDatabase] No formula found for stat: {currentStat}");
+                    continue;
                 }
+
+                // Linear scaling formula: base_value + (level × multiplier)
+                float statValue = formula.baseValue + (level * formula.multiplier);
+
+                // Linear cost progression: cost_base + (level × cost_per_level)
+                int cost = formula.costBase + (level * formula.costPerLevel);
+
+                // Mobile positioning: single column, 450px spacing, bottom-to-top
+                float positionY = -(level - 1) * nodeSpacing; // Y = 0, -450, -900, etc.
+
+                var talent = CreateLinearTalent(level, currentStat, statValue, cost, positionY, iconPath);
+                linearTalents.Add(talent);
+                talentsById[level] = talent;
             }
         }
 
         /// <summary>
-        /// Create a normal stat talent
+        /// Create a linear talent for the new system
         /// </summary>
-        private TalentModel CreateNormalStat(int id, BaseStatType statType, int tier, float posY, int requiredLevel)
+        private TalentModel CreateLinearTalent(int level, string statType, float statValue, int cost, float posY, string iconPath)
         {
             var talent = new TalentModel
             {
-                ID = id,
-                Name = GetStatName(statType, tier),
-                Description = GetStatDescription(statType, tier),
-                StatValue = CalculateStatValue(statType, tier),
-                StatType = GetUpgradeType(statType),
-                StatTypeString = GetUpgradeType(statType).ToString(),
+                ID = level,
+                Name = $"{statType} Boost",
+                Description = GetStatDescription(statType, level, statValue),
+                StatValue = statValue,
+                StatType = GetUpgradeTypeFromString(statType),
+                StatTypeString = statType,
                 NodeType = TalentNodeType.Normal,
                 NodeTypeString = "Normal",
-                PositionX = leftColumnX,  // Normal stats on LEFT column
-                PositionY = posY,
-                Cost = CalculateCost(tier),
-                MaxLevel = 10, // All normal stats can be upgraded 10 times
-                RequiredPlayerLevel = requiredLevel,
-                IconPath = GetStatIconPath(statType)
+                PositionX = positionX,  // Single column: center aligned (X = 0)
+                PositionY = posY,       // Mobile spacing: 450px apart
+                Cost = cost,
+                MaxLevel = 1,           // Linear system: each level = 1 talent
+                RequiredPlayerLevel = level,
+                IconPath = iconPath
             };
 
             talent.OnDataLoaded();
@@ -194,155 +185,32 @@ namespace Talents.Manager
         }
 
         /// <summary>
-        /// Get stat name with tier
+        /// Get stat description for linear system
         /// </summary>
-        private string GetStatName(BaseStatType statType, int tier)
-        {
-            string baseName = statType switch
-            {
-                BaseStatType.ATK => "Attack",
-                BaseStatType.HP => "Health", 
-                BaseStatType.Armor => "Armor",
-                BaseStatType.Healing => "Healing",
-                _ => "Unknown"
-            };
-
-            return tier > 1 ? $"{baseName} {ToRoman(tier)}" : baseName;
-        }
-
-        /// <summary>
-        /// Get stat description
-        /// </summary>
-        private string GetStatDescription(BaseStatType statType, int tier)
+        private string GetStatDescription(string statType, int level, float statValue)
         {
             return statType switch
             {
-                BaseStatType.ATK => $"Increase base attack damage (Tier {tier})",
-                BaseStatType.HP => $"Increase maximum health (Tier {tier})",
-                BaseStatType.Armor => $"Reduce incoming damage (Tier {tier})",
-                BaseStatType.Healing => $"Increase health regeneration (Tier {tier})",
-                _ => "Unknown stat"
+                "ATK" => $"Increase attack damage by +{statValue:F0} (Level {level})",
+                "DEF" => $"Increase defense by +{statValue:F0} (Level {level})",
+                "Speed" => $"Increase movement speed by +{statValue:F2} (Level {level})",
+                "Heal" => $"Increase health regeneration by +{statValue:F0} (Level {level})",
+                _ => $"Unknown stat boost (Level {level})"
             };
         }
 
         /// <summary>
-        /// Calculate stat value based on tier
+        /// Get upgrade type from stat string
         /// </summary>
-        private float CalculateStatValue(BaseStatType statType, int tier)
-        {
-            float baseValue = statType switch
-            {
-                BaseStatType.ATK => baseStatStartValue,
-                BaseStatType.HP => baseStatStartValue * 4f, // HP has higher base value
-                BaseStatType.Armor => baseStatStartValue * 0.5f, // Armor has lower base value
-                BaseStatType.Healing => baseStatStartValue * 0.3f, // Healing has lowest base value
-                _ => baseStatStartValue
-            };
-
-            // Apply tier growth
-            return baseValue * Mathf.Pow(baseStatGrowthRate, tier - 1);
-        }
-
-        /// <summary>
-        /// Calculate cost based on tier
-        /// </summary>
-        private int CalculateCost(int tier)
-        {
-            return Mathf.RoundToInt(baseCost * Mathf.Pow(costGrowthRate, tier - 1));
-        }
-
-        /// <summary>
-        /// Get upgrade type from base stat type
-        /// </summary>
-        private UpgradeType GetUpgradeType(BaseStatType statType)
+        private UpgradeType GetUpgradeTypeFromString(string statType)
         {
             return statType switch
             {
-                BaseStatType.ATK => UpgradeType.Damage,
-                BaseStatType.HP => UpgradeType.Health,
-                BaseStatType.Armor => UpgradeType.Damage, // Map to damage for damage reduction
-                BaseStatType.Healing => UpgradeType.Health, // Map to health for healing
+                "ATK" => UpgradeType.Damage,
+                "DEF" => UpgradeType.Damage, // Map defense to damage for damage reduction
+                "Speed" => UpgradeType.Speed,
+                "Heal" => UpgradeType.Health,
                 _ => UpgradeType.Health
-            };
-        }
-
-        /// <summary>
-        /// Get icon path for stat type
-        /// </summary>
-        private string GetStatIconPath(BaseStatType statType)
-        {
-            return statType switch
-            {
-                BaseStatType.ATK => "atk_icon",
-                BaseStatType.HP => "hp_icon", 
-                BaseStatType.Armor => "armor_icon",
-                BaseStatType.Healing => "healing_icon",
-                _ => "default_icon"
-            };
-        }
-
-        /// <summary>
-        /// Process special skills from CSV data
-        /// </summary>
-        private void ProcessSpecialSkills(List<TalentModel> specialSkillsData)
-        {
-            float currentY = startY; // Start from bottom
-            
-            // Sort special skills by required player level
-            var sortedSpecialSkills = specialSkillsData
-                .Where(t => t.NodeTypeString?.ToLower() == "special")
-                .OrderBy(t => t.RequiredPlayerLevel)
-                .ToList();
-
-            foreach (var skill in sortedSpecialSkills)
-            {
-                // Set position - special skills on the RIGHT
-                skill.PositionX = rightColumnX;
-                skill.PositionY = currentY;
-                
-                // Ensure it's marked as special
-                skill.NodeType = TalentNodeType.Special;
-                skill.OnDataLoaded();
-
-                specialTalents.Add(skill);
-                talentsById[skill.ID] = skill;
-
-                currentY += specialNodeSpacing; // Use specific spacing for special skills
-            }
-        }
-
-        /// <summary>
-        /// Combine all talents and sort
-        /// </summary>
-        private void CombineAllTalents()
-        {
-            allTalents.Clear();
-            allTalents.AddRange(normalTalents);
-            allTalents.AddRange(specialTalents);
-            
-            // Sort by position Y (bottom to top)
-            allTalents.Sort((a, b) => a.PositionY.CompareTo(b.PositionY));
-        }
-
-        /// <summary>
-        /// Convert number to Roman numerals
-        /// </summary>
-        private string ToRoman(int number)
-        {
-            if (number <= 1) return "";
-            
-            return number switch
-            {
-                2 => "II",
-                3 => "III", 
-                4 => "IV",
-                5 => "V",
-                6 => "VI",
-                7 => "VII",
-                8 => "VIII",
-                9 => "IX",
-                10 => "X",
-                _ => number.ToString()
             };
         }
 
@@ -352,8 +220,7 @@ namespace Talents.Manager
         private void ClearData()
         {
             allTalents.Clear();
-            normalTalents.Clear();
-            specialTalents.Clear();
+            linearTalents.Clear();
             talentsById.Clear();
             totalTalentCount = 0;
         }
@@ -377,23 +244,15 @@ namespace Talents.Manager
         }
 
         /// <summary>
-        /// Get talent cost for specific level
+        /// Get talent cost for specific level (linear system)
         /// </summary>
-        public int GetTalentCost(int talentId, int targetLevel)
+        public int GetTalentCost(int talentId, int targetLevel = 1)
         {
             var talent = GetTalentById(talentId);
             if (talent == null) return 0;
 
-            if (talent.NodeType == TalentNodeType.Normal)
-            {
-                // Normal stats: cost increases with each upgrade level
-                return talent.Cost * targetLevel;
-            }
-            else
-            {
-                // Special skills: fixed cost
-                return talent.Cost;
-            }
+            // Linear system: each talent has a fixed cost
+            return talent.Cost;
         }
 
         /// <summary>
@@ -432,85 +291,74 @@ namespace Talents.Manager
         }
 
         /// <summary>
-        /// Get normal stats for specific tier/cycle
+        /// Get linear talents for specific level range
         /// </summary>
-        public List<TalentModel> GetNormalStatsForTier(int tier)
+        public List<TalentModel> GetLinearTalentsForLevelRange(int minLevel, int maxLevel)
         {
-            return normalTalents.Where(t => t.Name.Contains(ToRoman(tier)) || (tier == 1 && !t.Name.Contains("II"))).ToList();
+            return linearTalents.Where(t => t.RequiredPlayerLevel >= minLevel && t.RequiredPlayerLevel <= maxLevel).ToList();
         }
 
         /// <summary>
-        /// Get special skills available for player level
+        /// Get next talent to unlock
         /// </summary>
-        public List<TalentModel> GetAvailableSpecialSkills(int playerLevel)
+        public TalentModel GetNextTalentToUnlock(int currentPlayerLevel)
         {
-            return specialTalents.Where(t => t.RequiredPlayerLevel <= playerLevel).ToList();
+            return linearTalents.FirstOrDefault(t => t.RequiredPlayerLevel == currentPlayerLevel + 1);
         }
 
         /// <summary>
-        /// Get next tier of stats to unlock
+        /// Set custom spacing values for linear progression
         /// </summary>
-        public List<TalentModel> GetNextTierStats(int currentPlayerLevel)
+        public void SetSpacing(float newNodeSpacing)
         {
-            return normalTalents.Where(t => t.RequiredPlayerLevel == currentPlayerLevel + 1).ToList();
-        }
-
-        /// <summary>
-        /// Set custom spacing values
-        /// </summary>
-        public void SetSpacing(float normalSpacing, float specialSpacing, float tierSpacing = 0f)
-        {
-            this.normalNodeSpacing = normalSpacing;
-            this.specialNodeSpacing = specialSpacing;
-            this.tierSpacing = tierSpacing;
+            this.nodeSpacing = newNodeSpacing;
             
             // Regenerate layout if data is loaded
             if (isDataLoaded)
             {
-                var specialData = specialTalents.ToList();
-                ProcessTalentData(specialData);
+                ProcessTalentData();
             }
         }
 
         /// <summary>
-        /// Quick spacing presets
+        /// Quick spacing presets for mobile optimization
         /// </summary>
         [ContextMenu("Mobile Spacing (1080x2160)")]
         public void SetMobileSpacing()
         {
-            SetSpacing(400f, 450f, 100f); // 4 nodes visible
+            SetSpacing(450f); // 4 nodes visible in 1800px viewport
         }
 
         [ContextMenu("Compact Spacing")]
         public void SetCompactSpacing()
         {
-            SetSpacing(300f, 350f, 50f); // 5-6 nodes visible
+            SetSpacing(300f); // 6 nodes visible
         }
 
         [ContextMenu("Normal Spacing")]
         public void SetNormalSpacing()
         {
-            SetSpacing(400f, 450f, 100f); // 4 nodes visible (default)
+            SetSpacing(400f); // ~4.5 nodes visible
         }
 
         [ContextMenu("Wide Spacing")]
         public void SetWideSpacing()
         {
-            SetSpacing(500f, 550f, 150f); // 3 nodes visible
+            SetSpacing(600f); // 3 nodes visible
         }
         [ContextMenu("Reload Talent Data")]
-        public async void ReloadTalentData()
+        public void ReloadTalentData()
         {
             try
             {
                 isDataLoaded = false;
                 loadStatus = "Reloading...";
                 
-                var specialSkillsData = await CsvDataManager.Instance.ForceReloadAsync<TalentModel>();
-                ProcessTalentData(specialSkillsData);
+                LoadStatFormulas();
+                ProcessTalentData();
                 
                 isDataLoaded = true;
-                loadStatus = $"Reloaded {totalTalentCount} talents";
+                loadStatus = $"Reloaded {totalTalentCount} linear talents";
                 OnDataLoaded?.Invoke();
             }
             catch (Exception ex)
@@ -530,26 +378,24 @@ namespace Talents.Manager
         {
             if (!isDataLoaded) return;
 
-            Debug.Log($"=== AUTO-GENERATED TALENT TREE ===");
-            Debug.Log($"Total: {totalTalentCount} ({normalTalents.Count} normal, {specialTalents.Count} special)");
+            Debug.Log($"=== LINEAR TALENT TREE ===");
+            Debug.Log($"Total: {totalTalentCount} linear talents");
             Debug.Log($"Max Player Level: {maxPlayerLevel}");
-            Debug.Log($"Stat Pattern: {string.Join(" → ", statPattern)}");
-            Debug.Log($"Layout: Normal Stats (LEFT), Special Skills (RIGHT)");
+            Debug.Log($"Stat Rotation: {string.Join(" → ", statRotation)}");
+            Debug.Log($"Layout: Single Column (Mobile Optimized)");
             Debug.Log($"Spawn Direction: Bottom to Top (Y: {startY} upward)");
+            Debug.Log($"Node Spacing: {nodeSpacing}px");
             
-            Debug.Log("\n=== NORMAL STATS (LEFT COLUMN) ===");
-            for (int i = 0; i < normalTalents.Count; i++)
+            Debug.Log("\n=== LINEAR PROGRESSION ===");
+            for (int i = 0; i < linearTalents.Count && i < 10; i++) // Show first 10 levels
             {
-                var talent = normalTalents[i];
-                Debug.Log($"{i+1}. {talent.Name} (Lv.{talent.RequiredPlayerLevel}) - Pos: ({talent.PositionX}, {talent.PositionY:F0}) - Value: {talent.StatValue:F1} - Cost: {talent.Cost}");
-                
-                if ((i + 1) % 4 == 0) Debug.Log("--- End of Cycle ---");
+                var talent = linearTalents[i];
+                Debug.Log($"Level {talent.RequiredPlayerLevel}: {talent.Name} - Value: +{talent.StatValue:F1} - Cost: {talent.Cost} - Pos: ({talent.PositionX}, {talent.PositionY:F0})");
             }
-
-            Debug.Log("\n=== SPECIAL SKILLS (RIGHT COLUMN) ===");
-            foreach (var skill in specialTalents)
+            
+            if (linearTalents.Count > 10)
             {
-                Debug.Log($"{skill.Name} (Lv.{skill.RequiredPlayerLevel}) - Pos: ({skill.PositionX}, {skill.PositionY:F0}) - Cost: {skill.Cost}");
+                Debug.Log($"... and {linearTalents.Count - 10} more levels ...");
             }
         }
 
@@ -559,23 +405,47 @@ namespace Talents.Manager
             if (!isDataLoaded) return;
 
             Debug.Log($"=== MOBILE LAYOUT DEBUG (1080x2160) ===");
-            Debug.Log($"Normal Node Spacing: {normalNodeSpacing}px");
-            Debug.Log($"Special Node Spacing: {specialNodeSpacing}px");
-            Debug.Log($"Tier Spacing: {tierSpacing}px");
+            Debug.Log($"Node Spacing: {nodeSpacing}px");
             Debug.Log($"Viewport Height: ~1800px (usable)");
-            Debug.Log($"Nodes per screen: {1800f / normalNodeSpacing:F1}");
-            Debug.Log($"Total Normal Talents: {normalTalents.Count}");
-            Debug.Log($"Total Special Talents: {specialTalents.Count}");
+            Debug.Log($"Nodes per screen: {1800f / nodeSpacing:F1}");
+            Debug.Log($"Total Linear Talents: {linearTalents.Count}");
+            Debug.Log($"Layout Type: Single Column (X = {positionX})");
             
-            if (normalTalents.Count > 0)
+            if (linearTalents.Count > 0)
             {
-                var firstNormal = normalTalents[0];
-                var lastNormal = normalTalents[normalTalents.Count - 1];
-                var totalHeight = lastNormal.PositionY - firstNormal.PositionY;
+                var firstTalent = linearTalents[0];
+                var lastTalent = linearTalents[linearTalents.Count - 1];
+                var totalHeight = Mathf.Abs(lastTalent.PositionY - firstTalent.PositionY);
                 var screenCount = totalHeight / 1800f;
-                Debug.Log($"Normal column spans {screenCount:F1} screens");
+                Debug.Log($"Total tree height: {totalHeight:F0}px");
+                Debug.Log($"Tree spans {screenCount:F1} screens");
+                Debug.Log($"First talent: Level {firstTalent.RequiredPlayerLevel} at Y={firstTalent.PositionY}");
+                Debug.Log($"Last talent: Level {lastTalent.RequiredPlayerLevel} at Y={lastTalent.PositionY}");
+            }
+            
+            // Show progression examples
+            Debug.Log("\n=== PROGRESSION EXAMPLES ===");
+            for (int i = 1; i <= 8 && i <= linearTalents.Count; i++)
+            {
+                var talent = linearTalents.FirstOrDefault(t => t.RequiredPlayerLevel == i);
+                if (talent != null)
+                {
+                    Debug.Log($"Level {i}: {talent.Name} = +{talent.StatValue:F2} | Cost: {talent.Cost} gold");
+                }
             }
         }
+    }
+
+    /// <summary>
+    /// Stat formula for linear progression system
+    /// </summary>
+    [System.Serializable]
+    public struct StatFormula
+    {
+        public float baseValue;     // Base stat value
+        public float multiplier;    // Multiplier per level
+        public int costBase;        // Base cost
+        public int costPerLevel;    // Cost increase per level
     }
 
     // ReadOnly attribute for inspector

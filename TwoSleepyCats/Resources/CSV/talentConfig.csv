@@ -1,0 +1,14 @@
+# Linear Talent System Configuration
+# Format: stat_type,base_value,multiplier,cost_base,cost_per_level,icon
+
+# Stat Formulas
+ATK,10,2,100,10,damage_talent
+DEF,5,1.5,100,10,titan_talent
+Speed,0.1,0.05,100,10,speed_talent
+Heal,2,1,100,10,phoenix_talent
+
+# Mobile Layout Settings
+mobile_node_spacing,450
+mobile_viewport_height,1800
+mobile_nodes_visible,4
+layout_type,single_column
