@@ -328,10 +328,10 @@ namespace Talents.UI
         {
             if (talent.Name.Contains("Attack"))
                 return new Color(1f, 0.3f, 0.3f); // Red
-            else if (talent.Name.Contains("Health"))
-                return new Color(0.3f, 1f, 0.3f); // Green
-            else if (talent.Name.Contains("Armor"))
+            else if (talent.Name.Contains("Defense"))
                 return new Color(0.3f, 0.3f, 1f); // Blue
+            else if (talent.Name.Contains("Speed"))
+                return new Color(0.3f, 1f, 0.3f); // Green
             else if (talent.Name.Contains("Healing"))
                 return new Color(1f, 1f, 0.3f); // Yellow
             else

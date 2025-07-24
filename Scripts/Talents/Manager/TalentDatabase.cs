@@ -25,11 +25,11 @@ namespace Talents.Manager
         
         [Header("Layout Settings")]
         [SerializeField] private float leftColumnX = -200f;   // Normal stats column
-        [SerializeField] private float rightColumnX = 200f;   // Special skills column
-        [SerializeField] private float normalNodeSpacing = 400f;    // 4 nodes visible
-        [SerializeField] private float specialNodeSpacing = 450f;  // Spacing for special skills
-        [SerializeField] private float tierSpacing = 100f;         // Extra spacing between tiers
-        [SerializeField] private float startY = 0f;                // Start from center (no offset)
+        [SerializeField] private float rightColumnX = 200f;   // Special skills column  
+        [SerializeField] private float normalNodeSpacing = 450f;    // Mobile optimized: 4 nodes visible
+        [SerializeField] private float specialNodeSpacing = 450f;  // Consistent spacing
+        [SerializeField] private float tierSpacing = 0f;           // No tier spacing for linear progression
+        [SerializeField] private float startY = 50f;              // Start from bottom with small padding
         
         [Header("Debug Info")]
         [SerializeField, ReadOnly] private int totalTalentCount = 0;
@@ -42,11 +42,11 @@ namespace Talents.Manager
         private List<TalentModel> specialTalents = new List<TalentModel>();
         private List<TalentModel> allTalents = new List<TalentModel>();
         
-        // Auto-generated normal stats pattern
+        // Linear progression pattern: ATK → DEF → Speed → Heal
         private readonly BaseStatType[] statPattern = { 
             BaseStatType.ATK, 
-            BaseStatType.HP, 
             BaseStatType.Armor, 
+            BaseStatType.Speed, 
             BaseStatType.Healing 
         };
 
@@ -110,82 +110,98 @@ namespace Talents.Manager
         }
 
         /// <summary>
-        /// Process and organize talent data - auto-generate normal stats + load special skills
+        /// Process and organize talent data - try to load from CSV first, fallback to auto-generation
         /// </summary>
-        private void ProcessTalentData(List<TalentModel> specialSkillsData)
+        private void ProcessTalentData(List<TalentModel> csvData)
         {
             ClearData();
 
-            // 1. Auto-generate normal stats
-            GenerateNormalStats();
+            // Check if we have valid CSV data for normal stats
+            var normalStatsFromCsv = csvData?.Where(t => t.NodeTypeString?.ToLower() == "normal").ToList();
+            
+            if (normalStatsFromCsv != null && normalStatsFromCsv.Any())
+            {
+                // Use CSV data for normal stats (linear progression)
+                ProcessNormalStatsFromCsv(normalStatsFromCsv);
+            }
+            else
+            {
+                // Fallback: Auto-generate normal stats with linear progression
+                GenerateLinearNormalStats();
+            }
 
-            // 2. Process special skills from CSV
-            ProcessSpecialSkills(specialSkillsData);
+            // Process special skills from CSV
+            ProcessSpecialSkills(csvData);
 
-            // 3. Combine and finalize
+            // Combine and finalize
             CombineAllTalents();
             
             totalTalentCount = allTalents.Count;
         }
 
         /// <summary>
-        /// Auto-generate normal stats based on pattern and player levels
+        /// Process normal stats from CSV data (linear progression)
         /// </summary>
-        private void GenerateNormalStats()
+        private void ProcessNormalStatsFromCsv(List<TalentModel> normalStatsData)
         {
-            int normalStatId = 1; // Start from ID 1
-            float currentY = startY; // Start from bottom
-
-            // Generate stats for each "cycle" based on max player level
-            int cycles = Mathf.CeilToInt((float)maxPlayerLevel / statPattern.Length);
+            // Sort by required player level to ensure proper order
+            var sortedStats = normalStatsData.OrderBy(t => t.RequiredPlayerLevel).ToList();
             
-            for (int cycle = 0; cycle < cycles; cycle++)
+            foreach (var talent in sortedStats)
             {
-                for (int i = 0; i < statPattern.Length; i++)
-                {
-                    var statType = statPattern[i];
-                    int level = cycle + 1;
-                    
-                    // Stop if we exceed max player level
-                    int requiredPlayerLevel = (cycle * statPattern.Length) + i + 1;
-                    if (requiredPlayerLevel > maxPlayerLevel) break;
+                // Ensure proper position for mobile layout
+                talent.PositionX = leftColumnX;
+                talent.NodeType = TalentNodeType.Normal;
+                talent.OnDataLoaded();
 
-                    var normalStat = CreateNormalStat(normalStatId, statType, level, currentY, requiredPlayerLevel);
-                    normalTalents.Add(normalStat);
-                    talentsById[normalStatId] = normalStat;
-
-                    normalStatId++;
-                    currentY += normalNodeSpacing; // Use specific spacing for normal stats
-                    
-                    // Add extra spacing between complete cycles (tiers)
-                    if (i == statPattern.Length - 1 && cycle < cycles - 1)
-                    {
-                        currentY += tierSpacing;
-                    }
-                }
+                normalTalents.Add(talent);
+                talentsById[talent.ID] = talent;
             }
         }
 
         /// <summary>
-        /// Create a normal stat talent
+        /// Auto-generate linear progression normal stats (fallback)
         /// </summary>
-        private TalentModel CreateNormalStat(int id, BaseStatType statType, int tier, float posY, int requiredLevel)
+        private void GenerateLinearNormalStats()
+        {
+            int normalStatId = 1;
+            float currentY = startY;
+
+            // Generate exactly one stat per level following the rotation pattern
+            for (int level = 1; level <= maxPlayerLevel; level++)
+            {
+                // Determine stat type based on rotation pattern
+                var statType = statPattern[(level - 1) % statPattern.Length];
+                
+                var normalStat = CreateLinearNormalStat(normalStatId, statType, level, currentY);
+                normalTalents.Add(normalStat);
+                talentsById[normalStatId] = normalStat;
+
+                normalStatId++;
+                currentY += normalNodeSpacing; // 450px spacing for mobile optimization
+            }
+        }
+
+        /// <summary>
+        /// Create a linear progression normal stat
+        /// </summary>
+        private TalentModel CreateLinearNormalStat(int id, BaseStatType statType, int level, float posY)
         {
             var talent = new TalentModel
             {
                 ID = id,
-                Name = GetStatName(statType, tier),
-                Description = GetStatDescription(statType, tier),
-                StatValue = CalculateStatValue(statType, tier),
+                Name = GetLinearStatName(statType, level),
+                Description = GetLinearStatDescription(statType, level),
+                StatValue = CalculateLinearStatValue(statType, level),
                 StatType = GetUpgradeType(statType),
                 StatTypeString = GetUpgradeType(statType).ToString(),
                 NodeType = TalentNodeType.Normal,
                 NodeTypeString = "Normal",
-                PositionX = leftColumnX,  // Normal stats on LEFT column
+                PositionX = leftColumnX,
                 PositionY = posY,
-                Cost = CalculateCost(tier),
+                Cost = CalculateLinearCost(level),
                 MaxLevel = 10, // All normal stats can be upgraded 10 times
-                RequiredPlayerLevel = requiredLevel,
+                RequiredPlayerLevel = level,
                 IconPath = GetStatIconPath(statType)
             };
 
@@ -194,88 +210,88 @@ namespace Talents.Manager
         }
 
         /// <summary>
-        /// Get stat name with tier
+        /// Get linear stat name
         /// </summary>
-        private string GetStatName(BaseStatType statType, int tier)
+        private string GetLinearStatName(BaseStatType statType, int level)
         {
             string baseName = statType switch
             {
                 BaseStatType.ATK => "Attack",
-                BaseStatType.HP => "Health", 
-                BaseStatType.Armor => "Armor",
+                BaseStatType.Armor => "Defense", 
+                BaseStatType.Speed => "Speed",
                 BaseStatType.Healing => "Healing",
                 _ => "Unknown"
             };
 
+            // Determine tier from level for display
+            int tier = ((level - 1) / statPattern.Length) + 1;
             return tier > 1 ? $"{baseName} {ToRoman(tier)}" : baseName;
         }
 
         /// <summary>
-        /// Get stat description
+        /// Get linear stat description
         /// </summary>
-        private string GetStatDescription(BaseStatType statType, int tier)
+        private string GetLinearStatDescription(BaseStatType statType, int level)
         {
+            int tier = ((level - 1) / statPattern.Length) + 1;
             return statType switch
             {
-                BaseStatType.ATK => $"Increase base attack damage (Tier {tier})",
-                BaseStatType.HP => $"Increase maximum health (Tier {tier})",
-                BaseStatType.Armor => $"Reduce incoming damage (Tier {tier})",
-                BaseStatType.Healing => $"Increase health regeneration (Tier {tier})",
+                BaseStatType.ATK => $"Increase base attack damage (Level {level})",
+                BaseStatType.Armor => $"Reduce incoming damage (Level {level})",
+                BaseStatType.Speed => $"Increase movement speed (Level {level})",
+                BaseStatType.Healing => $"Increase health regeneration (Level {level})",
                 _ => "Unknown stat"
             };
         }
 
         /// <summary>
-        /// Calculate stat value based on tier
+        /// Calculate linear stat value with proper scaling
         /// </summary>
-        private float CalculateStatValue(BaseStatType statType, int tier)
+        private float CalculateLinearStatValue(BaseStatType statType, int level)
         {
+            // Tier progression for scaling
+            int tier = ((level - 1) / statPattern.Length) + 1;
+            
             float baseValue = statType switch
             {
-                BaseStatType.ATK => baseStatStartValue,
-                BaseStatType.HP => baseStatStartValue * 4f, // HP has higher base value
-                BaseStatType.Armor => baseStatStartValue * 0.5f, // Armor has lower base value
-                BaseStatType.Healing => baseStatStartValue * 0.3f, // Healing has lowest base value
+                BaseStatType.ATK => 2f + (tier - 1) * 1f,        // 2, 3, 4, 5... per tier
+                BaseStatType.Armor => 1.5f + (tier - 1) * 0.5f,  // 1.5, 2, 2.5, 3... per tier
+                BaseStatType.Speed => 0.05f + (tier - 1) * 0.02f, // 0.05, 0.07, 0.09... per tier
+                BaseStatType.Healing => 1f + (tier - 1) * 0.5f,   // 1, 1.5, 2, 2.5... per tier
                 _ => baseStatStartValue
             };
 
-            // Apply tier growth
-            return baseValue * Mathf.Pow(baseStatGrowthRate, tier - 1);
+            return baseValue;
         }
 
         /// <summary>
-        /// Calculate cost based on tier
+        /// Calculate linear cost progression
         /// </summary>
-        private int CalculateCost(int tier)
+        private int CalculateLinearCost(int level)
         {
-            return Mathf.RoundToInt(baseCost * Mathf.Pow(costGrowthRate, tier - 1));
+            // Linear cost progression: 100 + (level * 10)
+            return 100 + (level * 10);
         }
 
-        /// <summary>
-        /// Get upgrade type from base stat type
-        /// </summary>
         private UpgradeType GetUpgradeType(BaseStatType statType)
         {
             return statType switch
             {
                 BaseStatType.ATK => UpgradeType.Damage,
-                BaseStatType.HP => UpgradeType.Health,
                 BaseStatType.Armor => UpgradeType.Damage, // Map to damage for damage reduction
+                BaseStatType.Speed => UpgradeType.Speed,
                 BaseStatType.Healing => UpgradeType.Health, // Map to health for healing
                 _ => UpgradeType.Health
             };
         }
 
-        /// <summary>
-        /// Get icon path for stat type
-        /// </summary>
         private string GetStatIconPath(BaseStatType statType)
         {
             return statType switch
             {
                 BaseStatType.ATK => "atk_icon",
-                BaseStatType.HP => "hp_icon", 
-                BaseStatType.Armor => "armor_icon",
+                BaseStatType.Armor => "armor_icon", 
+                BaseStatType.Speed => "speed_icon",
                 BaseStatType.Healing => "healing_icon",
                 _ => "default_icon"
             };
@@ -478,25 +494,25 @@ namespace Talents.Manager
         [ContextMenu("Mobile Spacing (1080x2160)")]
         public void SetMobileSpacing()
         {
-            SetSpacing(400f, 450f, 100f); // 4 nodes visible
+            SetSpacing(450f, 450f, 0f); // 4 nodes visible, no tier spacing
         }
 
         [ContextMenu("Compact Spacing")]
         public void SetCompactSpacing()
         {
-            SetSpacing(300f, 350f, 50f); // 5-6 nodes visible
+            SetSpacing(300f, 350f, 0f); // 5-6 nodes visible
         }
 
         [ContextMenu("Normal Spacing")]
         public void SetNormalSpacing()
         {
-            SetSpacing(400f, 450f, 100f); // 4 nodes visible (default)
+            SetSpacing(450f, 450f, 0f); // 4 nodes visible (default)
         }
 
         [ContextMenu("Wide Spacing")]
         public void SetWideSpacing()
         {
-            SetSpacing(500f, 550f, 150f); // 3 nodes visible
+            SetSpacing(600f, 600f, 0f); // 3 nodes visible
         }
         [ContextMenu("Reload Talent Data")]
         public async void ReloadTalentData()

@@ -64,10 +64,9 @@ namespace Talents.Data
         }
         [CsvIgnore]
         public bool IsBaseStat =>
-            StatType == UpgradeType.Damage ||    // ATK
-            StatType == UpgradeType.Health ||     // HP
-            StatTypeString.ToLower().Contains("armor") ||
-            StatTypeString.ToLower().Contains("healing");
+            StatType == UpgradeType.Damage ||    // ATK and Armor
+            StatType == UpgradeType.Speed ||     // Speed
+            (StatType == UpgradeType.Health && (StatTypeString.ToLower().Contains("healing") || Name.ToLower().Contains("healing")));
         
         [CsvIgnore]
         public bool IsSpecialSkill => NodeType == TalentNodeType.Special || !IsBaseStat;
@@ -116,9 +115,19 @@ namespace Talents.Data
             switch (StatType)
             {
                 case UpgradeType.Damage:
+                    // Check if it's armor/defense or attack
+                    if (StatTypeString.ToLower().Contains("armor") || 
+                        StatTypeString.ToLower().Contains("defense") ||
+                        Name.ToLower().Contains("defense"))
+                        return BaseStatType.Armor;
                     return BaseStatType.ATK;
+                case UpgradeType.Speed:
+                    return BaseStatType.Speed;
                 case UpgradeType.Health:
-                    return BaseStatType.HP;
+                    if (StatTypeString.ToLower().Contains("healing") ||
+                        Name.ToLower().Contains("healing"))
+                        return BaseStatType.Healing;
+                    return null; // Health stat itself is not part of linear progression
                 default:
                     if (StatTypeString.ToLower().Contains("armor"))
                         return BaseStatType.Armor;
@@ -539,9 +548,9 @@ namespace Talents.Data
     }
     public enum BaseStatType
     {
-        ATK,        // Damage
-        HP,         // Health  
-        Armor,      // Defense
+        ATK,        // Attack Damage
+        Armor,      // Defense/Damage Reduction
+        Speed,      // Movement Speed  
         Healing     // Health Regeneration
     }
 }
