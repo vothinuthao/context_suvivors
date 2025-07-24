@@ -1,120 +1,371 @@
-## **1. Tổng quan tính năng**
+# Talent System Redesign Plan - Mobile Optimized
 
-Evolution Chart (Bảng Tiến Hóa) là hệ thống progression chính trong Survivor.io, cho phép người chơi nâng cấp nhân vật và mở khóa các khả năng mới để đối phó với độ khó tăng dần.
+## 🎯 Mục tiêu mới (1080x2160)
+- **Mỗi level = 1 stat node bên trái** (ATK/DEF/Speed/Heal)
+- **Level milestone = special node bên phải** (chỉ hiển thị khi đúng level)
+- **3-4 nodes visible** trên màn hình (spacing ~450px)
+- **CSV-driven config** thay vì hardcode
+- **Minimal UI changes** - giữ nguyên structure hiện tại
 
-### **Mục tiêu chính:**
-- Tăng sức mạnh nhân vật qua thời gian
-- Tạo cảm giác progression và achievement
-- Khuyến khích người chơi tiếp tục chơi để unlock nội dung mới
-- Cung cấp customization cho playstyle khác nhau
+## 📱 Mobile Screen Calculation (1080x2160)
+```
+Total Height: 2160px
+- Status Bar: ~60px
+- Header UI: ~150px  
+- Footer UI: ~150px
+- Usable Height: ~1800px
+
+For 4 nodes visible: 1800 / 4 = 450px spacing ✅
+For 3 nodes visible: 1800 / 3 = 600px spacing
+Recommended: 450px (better UX, more content visible)
+```
+
+## 📊 CSV Schema vs Current Logic
+
+## 📊 CSV Schema Optimization
+
+### Current CSV (40 rows, 13 columns):
+```csv
+id, icon, name, description, stat_value, stat_type, node_type, 
+position_x, position_y, required_talent_id, cost, max_level, required_player_level
+```
+
+### 🔧 Strategy: Hybrid Approach
+**Keep CSV cho Special Skills** + **Auto-generate Normal Stats**
+
+#### A. **CSV for Special Skills Only (10-15 rows)**
+```csv
+id,icon,name,description,stat_value,stat_type,node_type,position_x,position_y,cost,milestone_level
+501,lucky_dog,Lucky Dog,"Increase luck by 10%",10,Luck,Special,200,0,100,5
+502,berserker,Berserker,"Damage +20% when HP < 50%",20,Damage,Special,200,0,150,10
+503,guardian,Guardian,"Reduce damage by 15%",15,Defense,Special,200,0,200,15
+```
+
+#### B. **Config Section trong CSV (Meta rows)**
+```csv
+id,name,description,stat_value,stat_type,node_type,max_level,required_player_level
+1,config_spacing,Node spacing for mobile,450,Config,Meta,50,1
+2,config_start_y,Starting Y position,0,Config,Meta,1,1
+3,config_left_x,Left column X,-250,Config,Meta,1,1
+4,config_right_x,Right column X,250,Config,Meta,1,1
+```
+
+## 🛠️ Implementation Strategy - Minimal UI Changes
+
+### Phase 1: Core Logic Changes
+
+#### A. **TalentDatabase.cs** - Generation Logic
+```csharp
+// Thay đổi GenerateNormalStats()
+private void GenerateNormalStats()
+{
+    int normalStatId = 1;
+    float currentY = startY;
+
+    // 1 stat per level instead of cycle
+    for (int level = 1; level <= maxPlayerLevel; level++)
+    {
+        // Rotate through stat types
+        var statType = statPattern[(level - 1) % statPattern.Length];
+        
+        var normalStat = CreateNormalStat(
+            normalStatId, 
+            statType, 
+            GetStatTier(level), // Calculate tier based on level
+            currentY, 
+            level
+        );
+        
+        normalTalents.Add(normalStat);
+        talentsById[normalStatId] = normalStat;
+        
+        normalStatId++;
+        currentY += normalNodeSpacing;
+    }
+}
+
+// Helper: Calculate stat tier for scaling
+private int GetStatTier(int level)
+{
+    return ((level - 1) / statPattern.Length) + 1;
+}
+
+```
+
+#### B. **Special Skills Placement**
+```csharp
+private void ProcessSpecialSkills(List<TalentModel> specialSkillsData)
+{
+    float currentY = startY;
+    int milestoneIndex = 0;
+    int[] milestones = { 5, 10, 15, 20, 25, 30, 35, 40, 45, 50 };
+
+    foreach (var skill in specialSkillsData.Take(milestones.Length))
+    {
+        if (milestoneIndex < milestones.Length)
+        {
+            skill.RequiredPlayerLevel = milestones[milestoneIndex];
+            skill.PositionX = rightColumnX;
+            skill.PositionY = startY + (milestones[milestoneIndex] - 1) * normalNodeSpacing;
+            
+            specialTalents.Add(skill);
+            talentsById[skill.ID] = skill;
+            milestoneIndex++;
+        }
+    }
+}
+```
+
+### Phase 2: Visual Components
+
+#### A. **Level Display Component** (New)
+```csharp
+public class LevelDisplayBehavior : MonoBehaviour
+{
+    [SerializeField] private TMP_Text levelText;
+    [SerializeField] private Image backgroundFill;
+    [SerializeField] private Image progressBar;
+    
+    public void SetLevel(int level, int currentPlayerLevel)
+    {
+        levelText.text = $"Lv.{level}";
+        
+        // Background fill progression
+        float progress = (float)currentPlayerLevel / level;
+        backgroundFill.fillAmount = Mathf.Clamp01(progress);
+        
+        // Color coding
+        if (currentPlayerLevel >= level)
+            backgroundFill.color = Color.green; // Unlocked
+        else if (currentPlayerLevel == level - 1)
+            backgroundFill.color = Color.orange; // Next level
+        else
+            backgroundFill.color = Color.gray; // Locked
+    }
+}
+```
+
+#### B. **TalentWindowBehavior.cs** - Layout Update
+```csharp
+private void BuildTalentsFromAutoGeneration()
+{
+    var allTalents = TalentDatabase.Instance.GetAllTalents();
+    int currentPlayerLevel = GetCurrentPlayerLevel();
+
+    foreach (var talent in allTalents)
+    {
+        // Create stat node (LEFT)
+        if (talent.NodeType == TalentNodeType.Normal)
+        {
+            var node = CreateTalentNode(talent);
+            node.transform.localPosition = new Vector2(leftColumnX, GetLevelY(talent.RequiredPlayerLevel));
+            
+            // Create level display (CENTER)
+            CreateLevelDisplay(talent.RequiredPlayerLevel, currentPlayerLevel);
+        }
+        // Create special node (RIGHT) - only at milestones
+        else if (talent.NodeType == TalentNodeType.Special)
+        {
+            var node = CreateTalentNode(talent);
+            node.transform.localPosition = new Vector2(rightColumnX, GetLevelY(talent.RequiredPlayerLevel));
+        }
+    }
+}
+
+private void CreateLevelDisplay(int level, int currentPlayerLevel)
+{
+    var levelDisplay = Instantiate(levelDisplayPrefab, talentTreeContent);
+    levelDisplay.transform.localPosition = new Vector2(0, GetLevelY(level)); // CENTER
+    
+    var displayComponent = levelDisplay.GetComponent<LevelDisplayBehavior>();
+    displayComponent.SetLevel(level, currentPlayerLevel);
+}
+
+private float GetLevelY(int level)
+{
+    return startY + (level - 1) * normalNodeSpacing;
+}
+```
+
+### Phase 3: Visual Polish
+
+#### A. **Background Progression System**
+```csharp
+public class TalentProgressionBackground : MonoBehaviour
+{
+    [SerializeField] private Image progressionFill;
+    [SerializeField] private Gradient progressionGradient;
+    
+    public void UpdateProgression(int currentLevel, int maxLevel)
+    {
+        float progress = (float)currentLevel / maxLevel;
+        progressionFill.fillAmount = progress;
+        progressionFill.color = progressionGradient.Evaluate(progress);
+    }
+}
+```
+
+#### B. **Connection Lines Update**
+```csharp
+// Update TalentConnectionRenderer để connect:
+// - Normal stats vertically (left column)
+// - Level displays (center column) 
+// - Special skills at milestones (right column)
+// - Cross connections from level display to special nodes
+```
+
+## 📱 Mobile Optimization Considerations
+
+### Spacing & Layout
+```csharp
+// Adjust spacing for mobile viewing
+normalNodeSpacing = 300f;  // Tighter spacing for more levels visible
+levelDisplayWidth = 80f;   // Compact level display
+specialNodeOffset = 150f;  // Right column closer to center
+```
+
+### Performance
+```csharp
+// Level display pooling
+private Queue<LevelDisplayBehavior> levelDisplayPool;
+
+// Lazy loading for off-screen elements
+private void UpdateVisibleElements(float scrollPosition)
+{
+    // Only update elements in viewport + buffer
+}
+```
+
+## 🎨 Visual Design Elements
+
+### Level Display Design
+- **Circular/Square background** with level number
+- **Gradient fill** showing progression (gray → orange → green)
+- **Glow effect** for current/next level
+- **Animation** when level up
+
+### Background Progression
+- **Vertical gradient** behind entire tree
+- **Color transition**: Red (low) → Orange (mid) → Green (high)
+- **Particle effects** at milestone levels
+
+### Connection Visual
+- **Thicker lines** for main progression path
+- **Dotted lines** to special nodes
+- **Animated flow** effect for unlocked paths
+
+## 📋 **Recommended CSV Structure**
+
+### **talentConfig.csv** (Optimized for new system)
+```csv
+id,icon,name,description,stat_value,stat_type,node_type,position_x,position_y,required_talent_id,cost,max_level,required_player_level
+# Special Skills Only (10-15 rows)
+501,lucky_dog,Lucky Dog,Increase drop chance by 10%,10,Luck,Special,250,0,0,100,1,5
+502,berserker,Berserker,Damage +20% when HP < 50%,20,Damage,Special,250,0,0,150,1,10
+503,guardian,Guardian,Reduce incoming damage by 15%,15,Defense,Special,250,0,0,200,1,15
+504,swift,Swift Runner,Movement speed +25%,25,Speed,Special,250,0,0,250,1,20
+505,vampire,Vampiric,Heal 5% of damage dealt,5,Health,Special,250,0,0,300,1,25
+506,critical,Critical Master,Critical chance +15%,15,Damage,Special,250,0,0,350,1,30
+507,tank,Iron Wall,Max HP +50%,50,Health,Special,250,0,0,400,1,35
+508,assassin,Shadow Strike,Ignore 20% armor,20,Damage,Special,250,0,0,450,1,40
+509,mage,Arcane Power,Spell damage +30%,30,Damage,Special,250,0,0,500,1,45
+510,legend,Legendary Hero,All stats +10%,10,All,Special,250,0,0,1000,1,50
+
+# Config Meta Data (Optional)
+1,config,mobile_spacing,Node spacing for 1080x2160,450,Config,Meta,0,0,0,0,50,1
+2,config,left_column_x,Left column position,-250,Config,Meta,0,0,0,0,1,1
+3,config,right_column_x,Right column position,250,Config,Meta,0,0,0,0,1,1
+```
+
+## 🔧 **UI Changes Justification**
+
+### **Giữ nguyên (KHÔNG thay đổi):**
+✅ **TalentNodeBehavior.cs** - Logic interaction đã perfect cho mobile
+✅ **TalentScrollOptimizer.cs** - Performance optimization đã tốt  
+✅ **TalentConnectionRenderer.cs** - Connection system work fine
+✅ **Save system** - TalentSave.cs đã stable
+
+### **Chỉnh sửa tối thiểu:**
+
+#### 1. **TalentDatabase.cs** - Core Logic Only
+**Lý do:** Cần thay đổi generation từ cycle → linear pattern
+**Impact:** Medium (logic changes)
+**UI Impact:** None (chỉ data generation)
+
+#### 2. **TalentWindowBehavior.cs** - Conditional Display
+**Lý do:** Special nodes cần hide/show based on player level
+**Impact:** Low (chỉ thêm visibility logic)
+**UI Impact:** Minimal (existing UI elements)
+
+#### 3. **New: LevelIndicatorOverlay.cs** - Simple Overlay
+**Lý do:** Player cần biết current level position
+**Impact:** Low (independent component)
+**UI Impact:** Add-on only (không ảnh hưởng existing UI)
+
+## ✅ **Testing Checklist - Mobile Focus**
+
+### **Visual Testing (1080x2160)**
+- [ ] 4 nodes visible trong viewport (450px spacing)
+- [ ] Smooth scroll performance với 50 levels
+- [ ] Special nodes chỉ appear khi đúng level
+- [ ] Touch targets đủ lớn (min 44dp)
+
+### **Functional Testing**
+- [ ] CSV loading đúng special skills
+- [ ] Normal stats auto-generation (1 per level)
+- [ ] Save/Load compatibility với existing data
+- [ ] Currency system (Gold/Orc) work correctly
+
+### **Performance Testing**
+- [ ] 60fps scrolling với full talent tree
+- [ ] Memory usage reasonable (object pooling)
+- [ ] Loading time < 1 second
+- [ ] Smooth animations on mid-range devices
+
+## 🚀 **Implementation Timeline**
+
+### **Day 1: Core Logic**
+- ✏️ Modify TalentDatabase.cs generation logic
+- ✏️ Update CSV parsing for special skills only  
+- ✏️ Test basic functionality
+
+### **Day 1.5: Visual Logic**
+- ✏️ Add special node visibility logic
+- ✏️ Create LevelIndicatorOverlay component
+- ✏️ Test mobile spacing (450px)
+
+### **Day 2: Polish & Test**
+- ✏️ Mobile optimization testing
+- ✏️ Performance verification
+- ✏️ Save compatibility testing
+
+## 🎯 **Expected Results**
+
+### **User Experience**
+✅ **Clear Progression:** "Level up → Unlock stat → Milestone = Special skill"
+✅ **Mobile Optimized:** 4 nodes visible, smooth scrolling
+✅ **Performance:** 60fps on mid-range devices
+✅ **Intuitive:** Special skills appear when relevant
+
+### **Technical Benefits**
+✅ **Simpler Logic:** Linear progression easier to maintain
+✅ **CSV Driven:** Easy to add/modify special skills
+✅ **Backward Compatible:** Existing saves still work
+✅ **Scalable:** Easy to extend to level 100+
+
+### **Game Design**
+✅ **Balanced:** 1 stat per level, special skills at milestones
+✅ **Engaging:** Clear goals (reach milestone for special skill)
+✅ **Flexible:** CSV allows quick balance changes
+✅ **Mobile First:** Designed for touch interaction
 
 ---
 
-## **2. Kiến trúc hệ thống**
+## 📝 **Summary**
 
-### **2.1 Hai thành phần chính:**
-
-#### **A. Base Stats Upgrades (Nâng cấp chỉ số cơ bản)**
-- **Chỉ số:** ATK, HP, Armor, Healing Ability
-- **Điều kiện:** Player Level
-- **Tiền tệ:** Gold Coins
-- **Đặc điểm:** Nâng cấp vĩnh viễn, tăng tuyến tính
-
-#### **B. Special Skills (Kỹ năng đặc biệt)**
-- **Loại:** Passive abilities ảnh hưởng gameplay
-- **Điều kiện:** Player Level cụ thể
-- **Tiền tệ:** Gold DNA (từ Trials)
-- **Ví dụ:**
-  - Level 3: Lucky Dog (bắt đầu với 1 skill)
-  - Level 5: Rogue (refresh skills 1 lần)
-  - Level 7: Athlete (tăng movement speed)
-
----
-
-## **3. Hệ thống tiền tệ**
-
-### **3.1 Gold Coins**
-- **Mục đích:** Mua Base Stats Upgrades
-- **Nguồn:** Hoàn thành levels, kill enemies
-- **Đặc điểm:** Dễ kiếm, sử dụng thường xuyên
-
-### **3.2 Gold DNA**
-- **Mục đích:** Mua Special Skills
-- **Nguồn:** Hoàn thành Trials (nội dung khó)
-- **Đặc điểm:** Hiếm, có giá trị cao
-
-### **3.3 Cơ chế Cost Progression:**
-- **Base Stats:** Cost tăng theo cấp bậc (ví dụ: 100 → 200 → 400 Gold)
-- **Special Skills:** Fixed cost nhưng yêu cầu level cụ thể
-- **Currency Display:** Hiển thị current/required amount rõ ràng
-
----
-
-## **4. Thiết kế UI/UX**
-
-### **4.1 Layout chính:**
-- **Bên trái - Base Stats Panel:** 
-  - Grid layout hiển thị 4 chỉ số chính (ATK, HP, Armor, Healing)
-  - Mỗi stat có progress bar và nút "+" để upgrade
-  - Hiển thị cost bằng Gold Coins
-  - Current value / Next level value
-
-- **Bên phải - Special Skills Panel:**
-  - Vertical list hiển thị các special skills
-  - Mỗi skill có icon, tên, mô tả effect
-  - Hiển thị unlock level requirement
-  - Cost bằng Gold DNA
-  - Lock/Unlock status rõ ràng
-
-### **4.2 Visual Elements:**
-- **Base Stats:**
-  - Progress bars cho từng stat
-  - Gold coin icon + cost amount
-  - Current/Max level indicators
-  - Preview tooltip khi hover
-
-- **Special Skills:**
-  - Skill icons với visual quality
-  - Lock icons cho skills chưa unlock
-  - DNA cost display
-  - Level requirement badges
-
-### **4.3 Interaction Flow:**
-- Click nút "+" ở Base Stats để upgrade (nếu đủ Gold)
-- Click special skill để mua (nếu đủ level + DNA)
-- Hover để xem preview effects
-- Visual feedback khi upgrade thành công
-
----
-
-## **5. Chiến thuật và Balance**
-
-### **5.1 Player Decision Making:**
-- **Planning ahead:** Chọn skills phù hợp với playstyle
-- **Resource management:** Phân bổ currency hợp lý
-- **Build diversity:** Tối ưu hóa base stats và special skills
-
-### **5.2 Progression Curve:**
-- **Early game:** Focus base stats
-- **Mid game:** Unlock special skills
-- **Late game:** Maximize all upgrades
-
----
-
-## **6. Technical Considerations**
-
-### **6.1 Performance:**
-- **Object pooling** cho UI elements
-- **Lazy loading** cho evolution data
-- **Caching** cho frequently accessed data
-
-### **8.2 Scalability:**
-- **Modular design** cho easy content addition
-- **Data-driven** approach với external files
-- **Event system** cho loose coupling
-
-### **8.3 Save System:**
-- Player level progression
-- Unlocked stats và skills
-- Currency amounts
-- Evolution history
+**Scope:** Moderate changes to core logic, minimal UI impact
+**Risk:** Low-Medium (well-defined changes, existing systems preserved)
+**Timeline:** 2 days for full implementation + testing
+**Mobile Ready:** Optimized cho 1080x2160 với 450px spacing
+**CSV Driven:** Special skills configurable, normal stats auto-generated
+**Performance:** Leverages existing optimization systems
