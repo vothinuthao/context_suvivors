@@ -4,158 +4,142 @@ using UnityEngine.UI;
 
 namespace Talents.Helper
 {
+    /// <summary>
+    /// Simple connection renderer for mobile Evolution Chart - just vertical lines
+    /// </summary>
     public class TalentConnectionRenderer : MonoBehaviour
     {
         [Header("Line Settings")]
-        [SerializeField] private Material lineMaterial;
-        [SerializeField] private Color lineColor = Color.green;
-        [SerializeField] private float lineWidth = 3f;
-        [SerializeField] private bool useUILines = true; // True = UI Image, False = LineRenderer
+        [SerializeField] private Color lineColor = new Color(0.5f, 0.8f, 1f, 0.6f);
+        [SerializeField] private float lineWidth = 4f;
+        [SerializeField] private bool showConnections = true;
 
-        [Header("Animation")]
-        [SerializeField] private bool animateLines = true;
-        [SerializeField] private float animationSpeed = 2f;
-        [SerializeField] private Gradient animationGradient;
-
-        private List<LineRenderer> worldLines = new List<LineRenderer>();
-        private List<Image> uiLines = new List<Image>();
-        private RectTransform parentTransform;
-
-        private void Awake()
-        {
-            parentTransform = GetComponent<RectTransform>();
+        [Header("Mobile Optimization")]
+        [SerializeField] private bool useSimpleLines = true; // True for better mobile performance
         
-            // Create default gradient if not assigned
-            if (animationGradient == null)
+        private List<GameObject> connectionLines = new List<GameObject>();
+
+        
+        
+        /// <summary>
+        /// Draw simple vertical connections for a column
+        /// </summary>
+        public void DrawColumnConnections(Vector2[] positions, string columnName)
+        {
+            if (!showConnections || positions.Length < 2) return;
+
+            // Sort positions from bottom to top
+            var sortedPositions = new List<Vector2>(positions);
+            sortedPositions.Sort((a, b) => a.y.CompareTo(b.y));
+
+            // Draw lines between consecutive nodes
+            for (int i = 0; i < sortedPositions.Count - 1; i++)
             {
-                animationGradient = new Gradient();
-                var colorKeys = new GradientColorKey[]
-                {
-                    new GradientColorKey(Color.green, 0f),
-                    new GradientColorKey(Color.cyan, 0.5f),
-                    new GradientColorKey(Color.green, 1f)
-                };
-                var alphaKeys = new GradientAlphaKey[]
-                {
-                    new GradientAlphaKey(1f, 0f),
-                    new GradientAlphaKey(1f, 1f)
-                };
-                animationGradient.SetKeys(colorKeys, alphaKeys);
+                Vector2 start = sortedPositions[i];
+                Vector2 end = sortedPositions[i + 1];
+                
+                DrawSingleLine(start, end, $"{columnName}_Line_{i}");
             }
         }
 
         /// <summary>
-        /// Draw vertical connection line cho một column
+        /// Draw base stats connections (left column)
         /// </summary>
-        public void DrawVerticalConnection(Vector2 startPos, Vector2 endPos, string connectionName = "Connection")
+        public void DrawBaseStatsConnections(Vector2[] nodePositions)
         {
-            if (useUILines)
+            DrawColumnConnections(nodePositions, "BaseStats");
+        }
+
+        /// <summary>
+        /// Draw special skills connections (right column)
+        /// </summary>
+        public void DrawSpecialSkillsConnections(Vector2[] nodePositions)
+        {
+            DrawColumnConnections(nodePositions, "SpecialSkills");
+        }
+
+        /// <summary>
+        /// Draw a single line between two points
+        /// </summary>
+        private void DrawSingleLine(Vector2 start, Vector2 end, string lineName)
+        {
+            if (useSimpleLines)
             {
-                DrawUILine(startPos, endPos, connectionName);
+                DrawUILine(start, end, lineName);
             }
             else
             {
-                DrawWorldLine(startPos, endPos, connectionName);
+                DrawLineRenderer(start, end, lineName);
             }
         }
 
         /// <summary>
-        /// Draw connection line giữa multiple points
+        /// Draw UI-based line (recommended for mobile)
         /// </summary>
-        public void DrawMultiPointConnection(Vector2[] points, string connectionName = "MultiConnection")
-        {
-            if (points.Length < 2) return;
-
-            for (int i = 0; i < points.Length - 1; i++)
-            {
-                DrawVerticalConnection(points[i], points[i + 1], $"{connectionName}_{i}");
-            }
-        }
-
-        /// <summary>
-        /// Draw UI-based line (recommended for UI)
-        /// </summary>
-        private void DrawUILine(Vector2 startPos, Vector2 endPos, string lineName)
+        private void DrawUILine(Vector2 start, Vector2 end, string lineName)
         {
             // Create line GameObject
-            GameObject lineObj = new GameObject($"UILine_{lineName}");
+            GameObject lineObj = new GameObject($"Line_{lineName}");
             lineObj.transform.SetParent(transform);
 
-            // Add Image component for the line
+            // Add Image component
             var lineImage = lineObj.AddComponent<Image>();
             lineImage.color = lineColor;
             lineImage.raycastTarget = false;
 
             // Setup RectTransform
-            var lineRect = lineObj.GetComponent<RectTransform>();
-        
+            var rectTransform = lineObj.GetComponent<RectTransform>();
+            
             // Calculate line properties
-            Vector2 direction = endPos - startPos;
+            Vector2 direction = end - start;
             float distance = direction.magnitude;
             float angle = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg;
 
             // Position at midpoint
-            Vector2 midpoint = (startPos + endPos) * 0.5f;
-            lineRect.anchoredPosition = midpoint;
+            Vector2 midpoint = (start + end) * 0.5f;
+            rectTransform.anchoredPosition = midpoint;
 
             // Set size and rotation
-            lineRect.sizeDelta = new Vector2(distance, lineWidth);
-            lineRect.rotation = Quaternion.AngleAxis(angle, Vector3.forward);
+            rectTransform.sizeDelta = new Vector2(distance, lineWidth);
+            rectTransform.rotation = Quaternion.AngleAxis(angle, Vector3.forward);
 
-            // Set anchor and pivot for proper rotation
-            lineRect.anchorMin = new Vector2(0.5f, 0.5f);
-            lineRect.anchorMax = new Vector2(0.5f, 0.5f);
-            lineRect.pivot = new Vector2(0.5f, 0.5f);
+            // Set anchors for proper positioning
+            rectTransform.anchorMin = new Vector2(0.5f, 0.5f);
+            rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
+            rectTransform.pivot = new Vector2(0.5f, 0.5f);
 
             // Add to tracking list
-            uiLines.Add(lineImage);
-
-            // Add animation if enabled
-            if (animateLines)
-            {
-                StartCoroutine(AnimateUILine(lineImage));
-            }
-
-            Debug.Log($"[TalentConnectionRenderer] Drew UI line {lineName} from {startPos} to {endPos} (distance: {distance:F1})");
+            connectionLines.Add(lineObj);
         }
 
         /// <summary>
-        /// Draw WorldSpace line using LineRenderer
+        /// Draw LineRenderer-based line (fallback)
         /// </summary>
-        private void DrawWorldLine(Vector2 startPos, Vector2 endPos, string lineName)
+        private void DrawLineRenderer(Vector2 start, Vector2 end, string lineName)
         {
             // Create line GameObject
-            GameObject lineObj = new GameObject($"WorldLine_{lineName}");
+            GameObject lineObj = new GameObject($"LineRenderer_{lineName}");
             lineObj.transform.SetParent(transform);
 
             // Add LineRenderer
             var lineRenderer = lineObj.AddComponent<LineRenderer>();
-            lineRenderer.material = lineMaterial ?? CreateDefaultLineMaterial();
-            lineRenderer.startColor = lineColor;
+            lineRenderer.material = CreateDefaultLineMaterial();
             lineRenderer.startWidth = lineWidth;
             lineRenderer.endWidth = lineWidth;
             lineRenderer.positionCount = 2;
             lineRenderer.useWorldSpace = false;
-            lineRenderer.sortingOrder = -1; // Behind UI elements
+            lineRenderer.sortingOrder = -1; // Behind nodes
 
             // Set line points
-            lineRenderer.SetPosition(0, startPos);
-            lineRenderer.SetPosition(1, endPos);
+            lineRenderer.SetPosition(0, start);
+            lineRenderer.SetPosition(1, end);
 
             // Add to tracking list
-            worldLines.Add(lineRenderer);
-
-            // Add animation if enabled
-            if (animateLines)
-            {
-                StartCoroutine(AnimateWorldLine(lineRenderer));
-            }
-
-            Debug.Log($"[TalentConnectionRenderer] Drew World line {lineName} from {startPos} to {endPos}");
+            connectionLines.Add(lineObj);
         }
 
         /// <summary>
-        /// Create default line material
+        /// Create default material for LineRenderer
         /// </summary>
         private Material CreateDefaultLineMaterial()
         {
@@ -165,44 +149,28 @@ namespace Talents.Helper
         }
 
         /// <summary>
-        /// Animate UI line color
+        /// Update line colors based on unlock states
         /// </summary>
-        private System.Collections.IEnumerator AnimateUILine(Image lineImage)
+        public void UpdateLineColors(bool[] unlockStates)
         {
-            float time = 0f;
-            Color originalColor = lineImage.color;
+            Color activeColor = new Color(0.3f, 1f, 0.3f, 0.8f); // Green
+            Color inactiveColor = new Color(0.5f, 0.5f, 0.5f, 0.4f); // Gray
 
-            while (lineImage != null && gameObject.activeInHierarchy)
+            for (int i = 0; i < connectionLines.Count && i < unlockStates.Length; i++)
             {
-                time += Time.deltaTime * animationSpeed;
-                float gradientTime = (Mathf.Sin(time) + 1f) * 0.5f; // 0 to 1 oscillation
+                if (connectionLines[i] == null) continue;
 
-                Color animatedColor = animationGradient.Evaluate(gradientTime);
-                animatedColor.a = originalColor.a; // Preserve alpha
-                lineImage.color = animatedColor;
+                Color targetColor = unlockStates[i] ? activeColor : inactiveColor;
 
-                yield return null;
-            }
-        }
+                // Update UI Image
+                var image = connectionLines[i].GetComponent<Image>();
+                if (image != null)
+                {
+                    image.color = targetColor;
+                }
 
-        /// <summary>
-        /// Animate WorldSpace line color
-        /// </summary>
-        private System.Collections.IEnumerator AnimateWorldLine(LineRenderer lineRenderer)
-        {
-            float time = 0f;
-            Color originalColor = lineRenderer.startColor;
-
-            while (lineRenderer != null && gameObject.activeInHierarchy)
-            {
-                time += Time.deltaTime * animationSpeed;
-                float gradientTime = (Mathf.Sin(time) + 1f) * 0.5f; // 0 to 1 oscillation
-
-                Color animatedColor = animationGradient.Evaluate(gradientTime);
-                animatedColor.a = originalColor.a; // Preserve alpha
-                lineRenderer.startColor = animatedColor;
-
-                yield return null;
+                // Update LineRenderer
+                var lineRenderer = connectionLines[i].GetComponent<LineRenderer>();
             }
         }
 
@@ -211,84 +179,57 @@ namespace Talents.Helper
         /// </summary>
         public void ClearAllLines()
         {
-            // Clear UI lines
-            foreach (var line in uiLines)
+            foreach (var line in connectionLines)
             {
                 if (line != null)
                 {
-                    DestroyImmediate(line.gameObject);
+                    DestroyImmediate(line);
                 }
             }
-            uiLines.Clear();
+            connectionLines.Clear();
+        }
 
-            // Clear world lines
-            foreach (var line in worldLines)
+        /// <summary>
+        /// Toggle connection visibility
+        /// </summary>
+        public void SetConnectionsVisible(bool visible)
+        {
+            showConnections = visible;
+            
+            foreach (var line in connectionLines)
             {
                 if (line != null)
                 {
-                    DestroyImmediate(line.gameObject);
+                    line.SetActive(visible);
                 }
             }
-            worldLines.Clear();
-
-            Debug.Log("[TalentConnectionRenderer] Cleared all connection lines");
         }
 
         /// <summary>
-        /// Draw connections cho Base Stats column
+        /// Set line color
         /// </summary>
-        public void DrawBaseStatsConnections(Vector2[] nodePositions)
+        public void SetLineColor(Color color)
         {
-            if (nodePositions.Length < 2) return;
-
-            // Draw vertical line connecting all base stats
-            DrawMultiPointConnection(nodePositions, "BaseStats");
-        }
-
-        /// <summary>
-        /// Draw connections cho Special Skills column
-        /// </summary>
-        public void DrawSpecialSkillsConnections(Vector2[] nodePositions)
-        {
-            if (nodePositions.Length < 2) return;
-
-            // Draw vertical line connecting all special skills
-            DrawMultiPointConnection(nodePositions, "SpecialSkills");
-        }
-
-        /// <summary>
-        /// Update line colors based on talent unlock status
-        /// </summary>
-        public void UpdateLineColors(bool[] unlockStates)
-        {
-            Color activeColor = Color.green;
-            Color inactiveColor = Color.gray;
-
-            // Update UI lines
-            for (int i = 0; i < uiLines.Count && i < unlockStates.Length; i++)
+            lineColor = color;
+            
+            foreach (var line in connectionLines)
             {
-                if (uiLines[i] != null)
-                {
-                    uiLines[i].color = unlockStates[i] ? activeColor : inactiveColor;
-                }
-            }
+                if (line == null) continue;
 
-            // Update world lines
-            for (int i = 0; i < worldLines.Count && i < unlockStates.Length; i++)
-            {
-                if (worldLines[i] != null)
+                var image = line.GetComponent<Image>();
+                if (image != null)
                 {
-                    worldLines[i].startColor = unlockStates[i] ? activeColor : inactiveColor;
+                    image.color = color;
                 }
             }
         }
 
         /// <summary>
-        /// Set line animation enabled/disabled
+        /// Get connection statistics
         /// </summary>
-        public void SetAnimationEnabled(bool enabled)
+        public int GetConnectionCount()
         {
-            animateLines = enabled;
+            return connectionLines.Count;
         }
 
         /// <summary>
@@ -300,29 +241,29 @@ namespace Talents.Helper
         }
 
         // Debug methods
-        [ContextMenu("Test Draw Base Stats")]
-        public void TestDrawBaseStats()
+        [ContextMenu("Test Base Stats Connections")]
+        public void TestBaseStatsConnections()
         {
             Vector2[] testPositions = new Vector2[]
             {
-                new Vector2(-200, 300),   // ATK
-                new Vector2(-200, 220),   // HP
-                new Vector2(-200, 140),   // Armor
-                new Vector2(-200, 60)     // Healing
+                new Vector2(-200, 0),     // ATK I
+                new Vector2(-200, 400),   // HP I
+                new Vector2(-200, 800),   // Armor I
+                new Vector2(-200, 1200)   // Healing I
             };
 
             DrawBaseStatsConnections(testPositions);
         }
 
-        [ContextMenu("Test Draw Special Skills")]
-        public void TestDrawSpecialSkills()
+        [ContextMenu("Test Special Skills Connections")]
+        public void TestSpecialSkillsConnections()
         {
             Vector2[] testPositions = new Vector2[]
             {
-                new Vector2(200, 300),    // Lucky Dog
-                new Vector2(200, 220),    // Rogue
-                new Vector2(200, 140),    // Athlete
-                new Vector2(200, 60)      // Berserker
+                new Vector2(200, 0),      // Lucky Dog
+                new Vector2(200, 450),    // Rogue
+                new Vector2(200, 900),    // Athlete
+                new Vector2(200, 1350)    // Berserker
             };
 
             DrawSpecialSkillsConnections(testPositions);
@@ -332,6 +273,12 @@ namespace Talents.Helper
         public void ClearAllLinesDebug()
         {
             ClearAllLines();
+        }
+
+        [ContextMenu("Toggle Connections")]
+        public void ToggleConnectionsDebug()
+        {
+            SetConnectionsVisible(!showConnections);
         }
     }
 }

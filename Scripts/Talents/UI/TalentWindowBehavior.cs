@@ -1,24 +1,20 @@
-﻿using System.Collections.Generic;
+﻿using System.Collections;
+using System.Collections.Generic;
 using System.Linq;
 using DG.Tweening;
 using OctoberStudio;
-using OctoberStudio.Currency;
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
 using UnityEngine.Events;
 using Talents.Data;
 using Talents.Manager;
-using Talents.UI;
-using OctoberStudio.Extensions;
-using OctoberStudio.Upgrades;
 using Talents.Helper;
-using UnityEngine.Serialization;
 
 namespace Talents.UI
 {
     /// <summary>
-    /// Main talent window behavior - handles the talent tree UI with TalentConnectionRenderer
+    /// Talent window with auto-generated layout support
     /// </summary>
     public class TalentWindowBehavior : MonoBehaviour
     {
@@ -26,8 +22,8 @@ namespace Talents.UI
         [SerializeField] private Button backButton;
         [SerializeField] private Button resetAllButton;
         [SerializeField] private TMP_Text goldCoinsText;
-        [SerializeField] private TMP_Text titleText;
         [SerializeField] private TMP_Text orcText;
+        [SerializeField] private TMP_Text titleText;
 
         [Header("Talent Tree")]
         [SerializeField] private ScrollRect talentScrollRect;
@@ -45,27 +41,21 @@ namespace Talents.UI
         [SerializeField] private Button confirmButton;
         [SerializeField] private Button cancelButton;
 
-        [Header("2-Column Layout")]
-        [SerializeField] private float leftColumnX = -200f;   // Base Stats column
-        [SerializeField] private float rightColumnX = 200f;   // Special Skills column  
-        [SerializeField] private float nodeSpacing = 20f;     // Khoảng cách giữa các nodes
-        [SerializeField] private float startY = 300f;         // Y position bắt đầu
-
         [Header("Connection Lines")]
         [SerializeField] private TalentConnectionRenderer connectionRenderer;
         [SerializeField] private bool showConnectionLines = true;
 
         [Header("Performance")]
         [SerializeField] private bool useObjectPooling = true;
-        [SerializeField] private int initialPoolSize = 70;
+        [SerializeField] private int initialPoolSize = 100;
 
         // Node management
         private Dictionary<int, TalentNodeBehavior> talentNodes = new Dictionary<int, TalentNodeBehavior>();
         private List<TalentNodeBehavior> nodePool = new List<TalentNodeBehavior>();
         private List<TalentNodeBehavior> activeNodes = new List<TalentNodeBehavior>();
 
-        // Track positions for connection lines
-        private List<Vector2> baseStatsPositions = new List<Vector2>();
+        // Layout tracking
+        private List<Vector2> normalStatsPositions = new List<Vector2>();
         private List<Vector2> specialSkillsPositions = new List<Vector2>();
 
         // State
@@ -76,89 +66,61 @@ namespace Talents.UI
         public UnityEvent OnTalentTreeUpdated;
 
         /// <summary>
-        /// Initialize the talent window
+        /// Initialize the talent window with proper content setup
         /// </summary>
         public void Init(UnityAction onBackButtonClicked)
         {
             if (backButton != null)
-            {
                 backButton.onClick.AddListener(onBackButtonClicked);
-            }
 
             if (resetAllButton != null)
-            {
                 resetAllButton.onClick.AddListener(ShowResetConfirmation);
-            }
 
             if (confirmButton != null)
-            {
                 confirmButton.onClick.AddListener(OnConfirmButtonClicked);
-            }
 
             if (cancelButton != null)
-            {
                 cancelButton.onClick.AddListener(OnCancelButtonClicked);
-            }
 
-            // Initialize object pool
-            if (useObjectPooling)
-            {
-                InitializeObjectPool();
-            }
-
-            // Setup connection renderer
+            InitializeObjectPool();
             SetupConnectionRenderer();
-
-            // Subscribe to talent manager events
-            if (TalentManager.Instance != null)
-            {
-                TalentManager.Instance.OnGoldCoinsChanged.AddListener(UpdateCurrencyUI);
-                TalentManager.Instance.OnTalentLearned.AddListener(OnTalentLearned);
-                TalentManager.Instance.OnTalentUpgraded.AddListener(OnTalentUpgraded);
-            }
-
-            // Hide tooltip and confirmation initially
-            if (tooltipPanel != null)
-                tooltipPanel.SetActive(false);
-            
-            if (confirmationPanel != null)
-                confirmationPanel.SetActive(false);
+            SetupContentArea();  // Setup content area properly
+            SubscribeToEvents();
+            HideUIElements();
 
             isInitialized = true;
         }
 
         /// <summary>
-        /// Setup connection renderer
+        /// Setup content area for proper node fitting
         /// </summary>
-        private void SetupConnectionRenderer()
+        private void SetupContentArea()
         {
-            // Find TalentConnectionRenderer if not assigned
-            if (connectionRenderer == null)
+            if (talentTreeContent == null) return;
+
+            // Set content anchors and pivot to center for proper positioning
+            talentTreeContent.anchorMin = new Vector2(0.5f, 0f);    // Bottom
+            talentTreeContent.anchorMax = new Vector2(0.5f, 0f);    // Bottom  
+            talentTreeContent.pivot = new Vector2(0.5f, 0f);  
+            talentTreeContent.anchoredPosition = Vector2.zero;
+
+            // Ensure scroll rect is setup for vertical scrolling
+            if (talentScrollRect != null)
             {
-                connectionRenderer = GetComponentInChildren<TalentConnectionRenderer>();
+                talentScrollRect.horizontal = false;
+                talentScrollRect.vertical = true;
+                talentScrollRect.movementType = ScrollRect.MovementType.Elastic;
                 
-                if (connectionRenderer == null)
-                {
-                    // Create connection renderer if not found
-                    GameObject connectionObj = new GameObject("ConnectionRenderer");
-                    connectionObj.transform.SetParent(talentTreeContent);
-                    connectionRenderer = connectionObj.AddComponent<TalentConnectionRenderer>();
-                    
-                    Debug.Log("[TalentWindow] Created TalentConnectionRenderer automatically");
-                }
+                // Start scroll position at bottom
+                talentScrollRect.verticalNormalizedPosition = 0f;
             }
         }
 
-        /// <summary>
-        /// Initialize object pool for talent nodes
-        /// </summary>
         private void InitializeObjectPool()
         {
-            if (talentNodePrefab == null)
-                return;
+            if (!useObjectPooling || talentNodePrefab == null) return;
 
             nodePool.Clear();
-            
             for (int i = 0; i < initialPoolSize; i++)
             {
                 var node = Instantiate(talentNodePrefab, talentTreeContent).GetComponent<TalentNodeBehavior>();
@@ -167,40 +129,43 @@ namespace Talents.UI
             }
         }
 
-        /// <summary>
-        /// Get a node from the pool or create new one
-        /// </summary>
-        private TalentNodeBehavior GetPooledNode()
+        private void SetupConnectionRenderer()
         {
-            if (useObjectPooling)
+            if (connectionRenderer == null)
             {
-                foreach (var node in nodePool)
+                connectionRenderer = GetComponentInChildren<TalentConnectionRenderer>();
+                
+                if (connectionRenderer == null)
                 {
-                    if (!node.gameObject.activeSelf)
-                    {
-                        node.gameObject.SetActive(true);
-                        return node;
-                    }
+                    GameObject connectionObj = new GameObject("SimpleConnectionRenderer");
+                    connectionObj.transform.SetParent(talentTreeContent);
+                    connectionRenderer = connectionObj.AddComponent<TalentConnectionRenderer>();
                 }
             }
-
-            // Create new node if pool is empty or pooling is disabled
-            return Instantiate(talentNodePrefab, talentTreeContent).GetComponent<TalentNodeBehavior>();
         }
 
-        /// <summary>
-        /// Return a node to the pool
-        /// </summary>
-        private void ReturnNodeToPool(TalentNodeBehavior node)
+        private void OnDestroy()
         {
-            if (useObjectPooling)
+            Clear();
+        }
+
+        private void SubscribeToEvents()
+        {
+            if (TalentManager.Instance != null)
             {
-                node.gameObject.SetActive(false);
+                TalentManager.Instance.OnGoldCoinsChanged.AddListener(UpdateCurrencyUI);
+                TalentManager.Instance.OnTalentLearned.AddListener(OnTalentLearned);
+                TalentManager.Instance.OnTalentUpgraded.AddListener(OnTalentUpgraded);
             }
-            else
-            {
-                Destroy(node.gameObject);
-            }
+        }
+
+        private void HideUIElements()
+        {
+            if (tooltipPanel != null)
+                tooltipPanel.SetActive(false);
+            
+            if (confirmationPanel != null)
+                confirmationPanel.SetActive(false);
         }
 
         /// <summary>
@@ -227,249 +192,150 @@ namespace Talents.UI
         }
 
         /// <summary>
-        /// Build the talent tree UI - 2 column layout với TalentConnectionRenderer
+        /// Build the talent tree with auto-generated layout
         /// </summary>
         private void BuildTalentTree()
         {
-            if (!TalentDatabase.Instance.IsDataLoaded)
-            {
-                Debug.LogWarning("[TalentWindow] Talent database not loaded yet");
-                return;
-            }
+            if (!TalentDatabase.Instance.IsDataLoaded) return;
 
-            // Clear existing
             ClearTalentTree();
+            ClearConnectionLines();
+            ResetPositionArrays();
 
-            // Clear connection lines
-            if (connectionRenderer != null)
-            {
-                connectionRenderer.ClearAllLines();
-            }
-
-            // Reset position arrays
-            baseStatsPositions.Clear();
-            specialSkillsPositions.Clear();
-
-            // Build talents from CSV data
-            BuildTalentsFromCSV();
-
-            // Draw connection lines using TalentConnectionRenderer
-            if (showConnectionLines && connectionRenderer != null)
-            {
-                DrawAllConnectionLines();
-            }
-
-            // Update states and UI
+            BuildTalentsFromAutoGeneration();
+            DrawConnectionLines();
             UpdateAllNodeStates();
             UpdateCurrencyUI();
             UpdateContentSize();
-
-            Debug.Log($"[TalentWindow] Built talent tree: {baseStatsPositions.Count} normal, {specialSkillsPositions.Count} special");
+            
+            // Auto-scroll to bottom to show starting nodes
+            StartCoroutine(ScrollToBottomAfterFrame());
+            
+            // Auto-scroll to bottom to show starting nodes
+            StartCoroutine(ScrollToBottomAfterFrame());
         }
 
         /// <summary>
-        /// Build talents from CSV data
+        /// Build talents from auto-generated data with proper content fitting
         /// </summary>
-        private void BuildTalentsFromCSV()
+        private void BuildTalentsFromAutoGeneration()
         {
             var allTalents = TalentDatabase.Instance.GetAllTalents();
 
+            // First pass: collect all positions
+            var tempNormalPositions = new List<Vector2>();
+            var tempSpecialPositions = new List<Vector2>();
+
+            foreach (var talent in allTalents)
+            {
+                Vector2 position = new Vector2(talent.PositionX, talent.PositionY);
+                
+                if (talent.NodeType == TalentNodeType.Normal)
+                    tempNormalPositions.Add(position);
+                else if (talent.NodeType == TalentNodeType.Special)
+                    tempSpecialPositions.Add(position);
+            }
+
+            // Normalize positions to fit content properly
+            NormalizePositions(tempNormalPositions, tempSpecialPositions);
+
+            // Second pass: create nodes with normalized positions
+            int normalIndex = 0, specialIndex = 0;
+            
             foreach (var talent in allTalents)
             {
                 var node = CreateTalentNode(talent);
+                Vector2 finalPosition;
 
-                // Use position from CSV data
-                Vector2 position = new Vector2(talent.PositionX, talent.PositionY);
-                node.transform.localPosition = position;
-
-                // Track positions for connection lines và apply styling
                 if (talent.NodeType == TalentNodeType.Normal)
                 {
-                    baseStatsPositions.Add(position);
-                    SetNodeColor(node, GetBaseStatColor(talent.StatType));
+                    finalPosition = normalStatsPositions[normalIndex++];
+                    ApplyNormalStatStyling(node, talent);
                 }
-                else if (talent.NodeType == TalentNodeType.Special)
+                else
                 {
-                    specialSkillsPositions.Add(position);
-                    SetSpecialSkillStyling(node, talent);
+                    finalPosition = specialSkillsPositions[specialIndex++];
+                    ApplySpecialSkillStyling(node, talent);
                 }
 
-                Debug.Log($"[TalentWindow] Created {talent.NodeType} {talent.Name} at ({talent.PositionX}, {talent.PositionY})");
+                node.transform.localPosition = finalPosition;
             }
-
-            // Sort positions for proper connection order (top to bottom)
-            baseStatsPositions.Sort((a, b) => b.y.CompareTo(a.y));
-            specialSkillsPositions.Sort((a, b) => b.y.CompareTo(a.y));
         }
 
         /// <summary>
-        /// Get color for base stat type
+        /// Normalize positions to fit content area properly
         /// </summary>
-        private Color GetBaseStatColor(UpgradeType statType)
+        private void NormalizePositions(List<Vector2> normalPositions, List<Vector2> specialPositions)
         {
-            switch (statType)
+            normalStatsPositions.Clear();
+            specialSkillsPositions.Clear();
+
+            // Sort by Y position (bottom to top)
+            normalPositions.Sort((a, b) => a.y.CompareTo(b.y));
+            specialPositions.Sort((a, b) => a.y.CompareTo(b.y));
+
+            // Find the bottom-most position
+            float minY = float.MaxValue;
+            if (normalPositions.Any()) minY = Mathf.Min(minY, normalPositions.Min(p => p.y));
+            if (specialPositions.Any()) minY = Mathf.Min(minY, specialPositions.Min(p => p.y));
+
+            // Offset all positions so the bottom starts near 0
+            float yOffset = -minY + 50f; // Small padding from bottom
+
+            // Apply offset and store
+            foreach (var pos in normalPositions)
             {
-                case UpgradeType.Damage:
-                    return new Color(1f, 0.3f, 0.3f); // Red for ATK
-                case UpgradeType.Health:
-                    return new Color(0.3f, 1f, 0.3f); // Green for HP
-                default:
-                    // For Armor and Healing, check the name or use different colors
-                    return new Color(0.3f, 0.3f, 1f); // Blue for others
+                normalStatsPositions.Add(new Vector2(pos.x, pos.y + yOffset));
             }
-        }
 
-        /// <summary>
-        /// Draw all connection lines using TalentConnectionRenderer
-        /// </summary>
-        private void DrawAllConnectionLines()
-        {
-            // Draw base stats connections (left column)
-            if (baseStatsPositions.Count > 1)
+            foreach (var pos in specialPositions)
             {
-                connectionRenderer.DrawBaseStatsConnections(baseStatsPositions.ToArray());
-                Debug.Log($"[TalentWindow] Drew base stats connections: {baseStatsPositions.Count} nodes");
-            }
-
-            // Draw special skills connections (right column)
-            if (specialSkillsPositions.Count > 1)
-            {
-                connectionRenderer.DrawSpecialSkillsConnections(specialSkillsPositions.ToArray());
-                Debug.Log($"[TalentWindow] Drew special skills connections: {specialSkillsPositions.Count} nodes");
+                specialSkillsPositions.Add(new Vector2(pos.x, pos.y + yOffset));
             }
         }
 
         /// <summary>
-        /// Clear all talent nodes
+        /// Apply styling for normal stats
         /// </summary>
-        private void ClearTalentTree()
+        private void ApplyNormalStatStyling(TalentNodeBehavior node, TalentModel talent)
         {
-            foreach (var node in activeNodes)
-            {
-                ReturnNodeToPool(node);
-            }
-
-            activeNodes.Clear();
-            talentNodes.Clear();
-        }
-
-        /// <summary>
-        /// Create a talent node
-        /// </summary>
-        private TalentNodeBehavior CreateTalentNode(TalentModel talent)
-        {
-            var node = GetPooledNode();
-            node.Initialize(talent);
-
-            // Subscribe to click event
-            node.OnNodeClicked.AddListener(OnTalentNodeClicked);
-
-            // Add to collections
-            talentNodes[talent.ID] = node;
-            activeNodes.Add(node);
-
-            // Enhanced display
-            EnhanceNodeDisplay(node, talent);
-
-            return node;
-        }
-
-        /// <summary>
-        /// Enhanced node display
-        /// </summary>
-        private void EnhanceNodeDisplay(TalentNodeBehavior node, TalentModel talent)
-        {
-            var textComponents = node.GetComponentsInChildren<TMPro.TextMeshProUGUI>();
+            Color statColor = GetStatColor(talent);
+            SetNodeColor(node, statColor);
             
-            foreach (var textComp in textComponents)
+            // Add tier indicator for higher tier stats
+            if (talent.Name.Contains("II") || talent.Name.Contains("III"))
             {
-                string compName = textComp.name.ToLower();
-                
-                if (compName.Contains("name") || compName.Contains("title"))
-                {
-                    // Hiển thị tên talent
-                    textComp.text = talent.Name;
-                    textComp.fontSize = 16f;
-                    textComp.fontStyle = TMPro.FontStyles.Bold;
-                }
-                else if (compName.Contains("description") || compName.Contains("subtitle"))
-                {
-                    // Hiển thị description hoặc stat bonus
-                    if (talent.NodeType == TalentNodeType.Normal)
-                    {
-                        var currentLevel = TalentManager.Instance?.GetTalentLevel(talent.ID) ?? 0;
-                        var bonus = talent.StatValue * (currentLevel + 1);
-                        textComp.text = $"+{bonus}";
-                        textComp.fontSize = 20f;
-                        textComp.color = Color.white;
-                    }
-                    else
-                    {
-                        textComp.text = talent.Description;
-                        textComp.fontSize = 12f;
-                        textComp.color = Color.gray;
-                    }
-                }
-                else if (compName.Contains("cost") || compName.Contains("price"))
-                {
-                    // Hiển thị cost với currency icon
-                    var cost = talent.Cost;
-                    var currencyIcon = talent.NodeType == TalentNodeType.Normal ? "💰" : "🧬";
-                    textComp.text = $"{currencyIcon}{cost}";
-                    textComp.fontSize = 14f;
-                    textComp.color = Color.yellow;
-                }
-                else if (compName.Contains("level") || compName.Contains("progress"))
-                {
-                    // Hiển thị current level / max level
-                    var currentLevel = TalentManager.Instance?.GetTalentLevel(talent.ID) ?? 0;
-                    
-                    if (talent.NodeType == TalentNodeType.Normal)
-                    {
-                        textComp.text = $"Level {currentLevel}/{talent.MaxLevel}";
-                    }
-                    else
-                    {
-                        textComp.text = currentLevel > 0 ? "LEARNED" : $"Requires Lv.{talent.RequiredPlayerLevel}";
-                    }
-                    
-                    textComp.fontSize = 10f;
-                    textComp.color = currentLevel > 0 ? Color.green : Color.gray;
-                }
-            }
-            
-            // Add progress bar cho Normal talents
-            if (talent.NodeType == TalentNodeType.Normal)
-            {
-                AddProgressBar(node, talent);
+                AddTierIndicator(node, talent.Name);
             }
         }
 
         /// <summary>
-        /// Add progress bar for normal talents
+        /// Apply styling for special skills
         /// </summary>
-        private void AddProgressBar(TalentNodeBehavior node, TalentModel talent)
+        private void ApplySpecialSkillStyling(TalentNodeBehavior node, TalentModel talent)
         {
-            // Tìm hoặc tạo progress bar
-            var progressBar = node.GetComponentInChildren<Slider>();
-            if (progressBar == null)
-            {
-                // Create progress bar nếu chưa có
-                GameObject progressObj = new GameObject("ProgressBar");
-                progressObj.transform.SetParent(node.transform);
+            Color specialColor = new Color(1f, 0.8f, 0f); // Gold
+            SetNodeColor(node, specialColor);
+            
+            // Add level requirement badge
+            AddLevelRequirementBadge(node, talent.RequiredPlayerLevel);
+        }
 
-                var slider = progressObj.AddComponent<Slider>();
-                var rectTrans = progressObj.GetComponent<RectTransform>();
-                rectTrans.anchoredPosition = new Vector2(0, -20);
-                rectTrans.sizeDelta = new Vector2(100, 10);
-
-                progressBar = slider;
-            }
-
-            // Update progress bar value
-            var currentLevel = TalentManager.Instance?.GetTalentLevel(talent.ID) ?? 0;
-            progressBar.maxValue = talent.MaxLevel;
-            progressBar.value = currentLevel;
+        /// <summary>
+        /// Get color for stat type
+        /// </summary>
+        private Color GetStatColor(TalentModel talent)
+        {
+            if (talent.Name.Contains("Attack"))
+                return new Color(1f, 0.3f, 0.3f); // Red
+            else if (talent.Name.Contains("Health"))
+                return new Color(0.3f, 1f, 0.3f); // Green
+            else if (talent.Name.Contains("Armor"))
+                return new Color(0.3f, 0.3f, 1f); // Blue
+            else if (talent.Name.Contains("Healing"))
+                return new Color(1f, 1f, 0.3f); // Yellow
+            else
+                return Color.white;
         }
 
         /// <summary>
@@ -488,55 +354,182 @@ namespace Talents.UI
         }
 
         /// <summary>
-        /// Set special skill styling
+        /// Add tier indicator for higher tier stats
         /// </summary>
-        private void SetSpecialSkillStyling(TalentNodeBehavior node, TalentModel talent)
+        private void AddTierIndicator(TalentNodeBehavior node, string talentName)
         {
-            // Set gold/premium color for special skills
-            var specialColor = new Color(1f, 0.8f, 0f); // Gold color
-            SetNodeColor(node, specialColor);
-
-            // Add level requirement badge
-            var texts = node.GetComponentsInChildren<TMPro.TextMeshProUGUI>();
+            var texts = node.GetComponentsInChildren<TMP_Text>();
             foreach (var text in texts)
             {
-                if (text.name.Contains("Level") || text.name.Contains("Requirement"))
+                if (text.name.Contains("Tier") || text.name.Contains("Level"))
                 {
-                    text.text = $"Lv.{talent.RequiredPlayerLevel}";
-                    text.color = Color.yellow;
+                    if (talentName.Contains("II"))
+                        text.text = "T2";
+                    else if (talentName.Contains("III"))
+                        text.text = "T3";
+                    else if (talentName.Contains("IV"))
+                        text.text = "T4";
+                    
+                    text.color = Color.cyan;
+                    text.gameObject.SetActive(true);
                     break;
                 }
             }
         }
 
         /// <summary>
-        /// Update content size for 2 columns
+        /// Add level requirement badge for special skills
+        /// </summary>
+        private void AddLevelRequirementBadge(TalentNodeBehavior node, int requiredLevel)
+        {
+            var texts = node.GetComponentsInChildren<TMP_Text>();
+            foreach (var text in texts)
+            {
+                if (text.name.Contains("Requirement") || text.name.Contains("Level"))
+                {
+                    text.text = $"Lv.{requiredLevel}";
+                    text.color = Color.yellow;
+                    text.gameObject.SetActive(true);
+                    break;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Get pooled node or create new one
+        /// </summary>
+        private TalentNodeBehavior GetPooledNode()
+        {
+            if (useObjectPooling)
+            {
+                foreach (var node in nodePool)
+                {
+                    if (!node.gameObject.activeSelf)
+                    {
+                        node.gameObject.SetActive(true);
+                        return node;
+                    }
+                }
+            }
+
+            return Instantiate(talentNodePrefab, talentTreeContent).GetComponent<TalentNodeBehavior>();
+        }
+
+        /// <summary>
+        /// Return node to pool
+        /// </summary>
+        private void ReturnNodeToPool(TalentNodeBehavior node)
+        {
+            if (useObjectPooling)
+                node.gameObject.SetActive(false);
+            else
+                Destroy(node.gameObject);
+        }
+
+        /// <summary>
+        /// Create talent node
+        /// </summary>
+        private TalentNodeBehavior CreateTalentNode(TalentModel talent)
+        {
+            var node = GetPooledNode();
+            node.Initialize(talent);
+            node.OnNodeClicked.AddListener(OnTalentNodeClicked);
+
+            talentNodes[talent.ID] = node;
+            activeNodes.Add(node);
+
+            return node;
+        }
+
+        /// <summary>
+        /// Clear all talent nodes
+        /// </summary>
+        private void ClearTalentTree()
+        {
+            foreach (var node in activeNodes)
+                ReturnNodeToPool(node);
+
+            activeNodes.Clear();
+            talentNodes.Clear();
+        }
+
+        /// <summary>
+        /// Clear connection lines
+        /// </summary>
+        private void ClearConnectionLines()
+        {
+            if (connectionRenderer != null)
+                connectionRenderer.ClearAllLines();
+        }
+
+        /// <summary>
+        /// Reset position arrays
+        /// </summary>
+        private void ResetPositionArrays()
+        {
+            normalStatsPositions.Clear();
+            specialSkillsPositions.Clear();
+        }
+
+        /// <summary>
+        /// Draw connection lines
+        /// </summary>
+        private void DrawConnectionLines()
+        {
+            if (!showConnectionLines || connectionRenderer == null) return;
+
+            // Draw normal stats connections (left column)
+            if (normalStatsPositions.Count > 1)
+                connectionRenderer.DrawBaseStatsConnections(normalStatsPositions.ToArray());
+
+            // Draw special skills connections (right column)
+            if (specialSkillsPositions.Count > 1)
+                connectionRenderer.DrawSpecialSkillsConnections(specialSkillsPositions.ToArray());
+        }
+
+        /// <summary>
+        /// Scroll to bottom after content is built (coroutine to wait for layout)
+        /// </summary>
+        private IEnumerator ScrollToBottomAfterFrame()
+        {
+            yield return new WaitForEndOfFrame();
+            
+            if (talentScrollRect != null)
+            {
+                // Scroll to bottom to show starting nodes (ATK I, Lucky Dog)
+                talentScrollRect.verticalNormalizedPosition = 0f;
+                
+                // Force layout rebuild
+                UnityEngine.UI.LayoutRebuilder.ForceRebuildLayoutImmediate(talentTreeContent);
+            }
+        }
+
+        /// <summary>
+        /// Update content size to fit all nodes properly
         /// </summary>
         private void UpdateContentSize()
         {
             if (talentTreeContent == null) return;
 
-            // Calculate bounds for all nodes
-            float minX = float.MaxValue, maxX = float.MinValue;
-            float minY = float.MaxValue, maxY = float.MinValue;
+            var allPositions = normalStatsPositions.Concat(specialSkillsPositions);
+            if (!allPositions.Any()) return;
 
-            var allPositions = baseStatsPositions.Concat(specialSkillsPositions);
-            foreach (var pos in allPositions)
-            {
-                minX = Mathf.Min(minX, pos.x);
-                maxX = Mathf.Max(maxX, pos.x);
-                minY = Mathf.Min(minY, pos.y);
-                maxY = Mathf.Max(maxY, pos.y);
-            }
+            // Calculate actual bounds of all nodes
+            float minX = allPositions.Min(p => p.x);
+            float maxX = allPositions.Max(p => p.x);
+            float minY = allPositions.Min(p => p.y);
+            float maxY = allPositions.Max(p => p.y);
 
-            // Add padding
-            float padding = 150f;
-            float width = (maxX - minX) + padding * 2;
-            float height = (maxY - minY) + padding * 2;
+            // Add node size padding (assume nodes are ~100x100)
+            float nodePadding = 100f;
+            float extraPadding = 50f;
+            
+            float totalWidth = (maxX - minX) + nodePadding + extraPadding * 2;
+            float totalHeight = (maxY - minY) + nodePadding + extraPadding * 2;
 
-            talentTreeContent.sizeDelta = new Vector2(width, height);
-
-            Debug.Log($"[TalentWindow] Updated content size: {width:F0} x {height:F0}");
+            // Set content size
+            talentTreeContent.sizeDelta = new Vector2(totalWidth, totalHeight);
+            talentTreeContent.anchoredPosition = Vector2.zero;
         }
 
         /// <summary>
@@ -545,46 +538,33 @@ namespace Talents.UI
         private void UpdateAllNodeStates()
         {
             foreach (var node in activeNodes)
-            {
                 node.UpdateVisualState();
-            }
 
-            // Update connection line colors based on talent states
             UpdateConnectionLineColors();
         }
 
         /// <summary>
-        /// Update connection line colors based on talent unlock status
+        /// Update connection line colors
         /// </summary>
         private void UpdateConnectionLineColors()
         {
             if (connectionRenderer == null) return;
 
-            bool[] normalUnlockStates = new bool[baseStatsPositions.Count];
-            for (int i = 0; i < baseStatsPositions.Count; i++)
+            // Create unlock states for connection lines
+            var allPositions = normalStatsPositions.Concat(specialSkillsPositions).ToArray();
+            bool[] unlockStates = new bool[allPositions.Length];
+
+            for (int i = 0; i < allPositions.Length; i++)
             {
-                var position = baseStatsPositions[i];
+                var position = allPositions[i];
                 var talent = FindTalentAtPosition(position);
                 if (talent != null)
                 {
-                    normalUnlockStates[i] = TalentManager.Instance?.GetTalentLevel(talentId: talent.ID) > 0;
+                    unlockStates[i] = TalentManager.Instance?.GetTalentLevel(talent.ID) > 0;
                 }
             }
 
-            // Create unlock states array for special skills
-            bool[] specialUnlockStates = new bool[specialSkillsPositions.Count];
-            for (int i = 0; i < specialSkillsPositions.Count; i++)
-            {
-                var position = specialSkillsPositions[i];
-                var talent = FindTalentAtPosition(position);
-                if (talent != null)
-                {
-                    specialUnlockStates[i] = TalentManager.Instance?.GetTalentLevel(talent.ID) > 0;
-                }
-            }
-
-            // Update line colors
-            connectionRenderer.UpdateLineColors(normalUnlockStates.Concat(specialUnlockStates).ToArray());
+            connectionRenderer.UpdateLineColors(unlockStates);
         }
 
         /// <summary>
@@ -607,18 +587,16 @@ namespace Talents.UI
 
             if (TalentManager.Instance.CanLearnTalent(talent.ID))
             {
-                // Hiển thị confirmation với đúng currency
                 ShowLearnConfirmation(node);
             }
             else
             {
-                // Show tooltip with requirement info
                 ShowTooltip(node);
             }
         }
 
         /// <summary>
-        /// Show learn confirmation dialog
+        /// Show learn confirmation
         /// </summary>
         private void ShowLearnConfirmation(TalentNodeBehavior node)
         {
@@ -626,23 +604,19 @@ namespace Talents.UI
             var currentLevel = TalentManager.Instance.GetTalentLevel(talent.ID);
             var cost = TalentDatabase.Instance.GetTalentCost(talent.ID, currentLevel + 1);
 
-            string confirmationMessage;
-
+            string message;
             if (talent.NodeType == TalentNodeType.Normal)
             {
-                confirmationMessage = $"Upgrade {talent.Name} to Level {currentLevel + 1}?\n" +
-                                     $"Cost: {cost} Gold Coins";
+                message = $"Upgrade {talent.Name} to Level {currentLevel + 1}?\nCost: {cost} Gold";
             }
             else
             {
-                confirmationMessage = $"Learn {talent.Name}?\n" +
-                                     $"Cost: {cost} Gold DNA\n" +
-                                     $"Requires Player Level {talent.RequiredPlayerLevel}";
+                message = $"Learn {talent.Name}?\nCost: {cost} Orc";
             }
 
             if (confirmationPanel != null && confirmationText != null)
             {
-                confirmationText.text = confirmationMessage;
+                confirmationText.text = message;
                 confirmationPanel.SetActive(true);
 
                 confirmationCallback = () => {
@@ -658,74 +632,17 @@ namespace Talents.UI
         }
 
         /// <summary>
-        /// Show tooltip for talent node
+        /// Show tooltip
         /// </summary>
         private void ShowTooltip(TalentNodeBehavior node)
         {
-            if (tooltipPanel == null || tooltipText == null)
-                return;
+            if (tooltipPanel == null || tooltipText == null) return;
 
-            var talent = node.TalentModel;
-            var progressInfo = TalentManager.Instance.GetTalentProgressInfo(talent.ID);
-
-            string tooltipContent = $"<b>{talent.Name}</b>\n";
-            tooltipContent += $"{talent.Description}\n\n";
-
-            if (talent.NodeType == TalentNodeType.Normal)
-            {
-                tooltipContent += $"<color=yellow>Base Stat</color>\n";
-                tooltipContent += $"Progress: {progressInfo.CurrentLevel}/{progressInfo.MaxLevel}\n";
-                tooltipContent += $"Currency: Gold Coins\n";
-            }
-            else
-            {
-                tooltipContent += $"<color=cyan>Special Skill</color>\n";
-                tooltipContent += $"Unlock Level: {talent.RequiredPlayerLevel}\n";
-                tooltipContent += $"Currency: Gold DNA\n";
-            }
-
-            if (progressInfo.NextLevelCost > 0)
-            {
-                tooltipContent += $"Next Cost: {progressInfo.NextLevelCost}\n";
-            }
-
-            // Hiển thị lý do không thể học
-            var unlockStatus = progressInfo.UnlockStatus;
-            if (unlockStatus != TalentUnlockStatus.Available)
-            {
-                switch (unlockStatus)
-                {
-                    case TalentUnlockStatus.Locked:
-                        tooltipContent += $"<color=red>Requires Player Level {talent.RequiredPlayerLevel}</color>";
-                        break;
-                    case TalentUnlockStatus.InsufficientPoints:
-                        var currencyName = talent.NodeType == TalentNodeType.Normal ? "Gold Coins" : "Gold DNA";
-                        tooltipContent += $"<color=red>Not enough {currencyName}</color>";
-                        break;
-                    case TalentUnlockStatus.MaxLevel:
-                        tooltipContent += $"<color=green>Max Level Reached</color>";
-                        break;
-                }
-            }
-
-            tooltipText.text = tooltipContent;
-            EnableToolTip(true);
+            tooltipText.text = node.GetTooltip();
+            tooltipPanel.SetActive(true);
 
             if (tooltipRectTransform != null)
-            {
                 tooltipRectTransform.anchoredPosition = new Vector2(0, -200);
-            }
-        }
-
-        /// <summary>
-        /// Enable/disable tooltip
-        /// </summary>
-        public void EnableToolTip(bool enable)
-        {
-            if (tooltipPanel != null)
-            {
-                tooltipPanel.SetActive(enable);
-            }
         }
 
         /// <summary>
@@ -734,9 +651,7 @@ namespace Talents.UI
         private void HideTooltip()
         {
             if (tooltipPanel != null)
-            {
                 tooltipPanel.SetActive(false);
-            }
         }
 
         /// <summary>
@@ -755,13 +670,13 @@ namespace Talents.UI
                 if (orcText != null)
                 {
                     var orcSave = GameController.SaveManager.GetSave<CurrencySave>("orc");
-                    orcText.text = $"DNA: {orcSave?.Amount ?? 0}";
+                    orcText.text = $"Orc: {orcSave?.Amount ?? 0}";
                 }
             }
         }
 
         /// <summary>
-        /// Handle talent learned event
+        /// Handle talent learned
         /// </summary>
         private void OnTalentLearned(TalentModel talent)
         {
@@ -770,31 +685,26 @@ namespace Talents.UI
                 node.AnimateLearn();
                 node.UpdateVisualState();
             }
-
-            // Update all nodes to refresh availability
             UpdateAllNodeStates();
         }
 
         /// <summary>
-        /// Handle talent upgraded event
+        /// Handle talent upgraded
         /// </summary>
         private void OnTalentUpgraded(TalentModel talent)
         {
             if (talentNodes.TryGetValue(talent.ID, out var node))
-            {
                 node.UpdateVisualState();
-            }
         }
 
         /// <summary>
-        /// Show reset confirmation dialog
+        /// Show reset confirmation
         /// </summary>
         private void ShowResetConfirmation()
         {
-            if (confirmationPanel == null)
-                return;
+            if (confirmationPanel == null) return;
 
-            confirmationText.text = "Are you sure you want to reset all talents?\nThis will refund all spent talent points.";
+            confirmationText.text = "Reset all talents?\nThis will refund all spent points.";
             confirmationPanel.SetActive(true);
 
             confirmationCallback = () => {
@@ -805,77 +715,45 @@ namespace Talents.UI
         }
 
         /// <summary>
-        /// Handle confirmation button clicked
+        /// Handle confirmation
         /// </summary>
         private void OnConfirmButtonClicked()
         {
             confirmationCallback?.Invoke();
             confirmationCallback = null;
-
+            
             if (confirmationPanel != null)
                 confirmationPanel.SetActive(false);
         }
 
         /// <summary>
-        /// Handle cancel button clicked
+        /// Handle cancel
         /// </summary>
         private void OnCancelButtonClicked()
         {
             confirmationCallback = null;
-
+            
             if (confirmationPanel != null)
                 confirmationPanel.SetActive(false);
         }
 
         /// <summary>
-        /// Scroll to specific talent
-        /// </summary>
-        public void ScrollToTalent(int talentId)
-        {
-            if (talentNodes.TryGetValue(talentId, out var node))
-            {
-                var nodeRect = node.GetComponent<RectTransform>();
-                if (nodeRect != null && talentScrollRect != null)
-                {
-                    // Calculate scroll position
-                    var contentRect = talentScrollRect.content;
-                    var viewportRect = talentScrollRect.viewport;
-
-                    var targetPosition = contentRect.anchoredPosition;
-                    targetPosition.y = nodeRect.anchoredPosition.y;
-
-                    // Smooth scroll
-                    contentRect.DOAnchorPos(targetPosition, 0.5f)
-                        .SetEase(Ease.OutQuad);
-                }
-            }
-        }
-
-        /// <summary>
-        /// Refresh the talent tree
+        /// Refresh talent tree
         /// </summary>
         public void RefreshTalentTree()
         {
             if (gameObject.activeSelf)
-            {
                 BuildTalentTree();
-            }
         }
 
         /// <summary>
-        /// Clear and cleanup
+        /// Cleanup
         /// </summary>
         public void Clear()
         {
             ClearTalentTree();
-            
-            // Clear connection lines
-            if (connectionRenderer != null)
-            {
-                connectionRenderer.ClearAllLines();
-            }
+            ClearConnectionLines();
 
-            // Unsubscribe from events
             if (TalentManager.Instance != null)
             {
                 TalentManager.Instance.OnGoldCoinsChanged.RemoveListener(UpdateCurrencyUI);
@@ -884,77 +762,90 @@ namespace Talents.UI
             }
         }
 
-        /// <summary>
-        /// Handle window becoming active
-        /// </summary>
         private void OnEnable()
         {
             if (isInitialized)
-            {
                 RefreshTalentTree();
-            }
         }
 
-        /// <summary>
-        /// Handle window becoming inactive
-        /// </summary>
         private void OnDisable()
         {
             HideTooltip();
         }
 
-        /// <summary>
-        /// Cleanup
-        /// </summary>
-        private void OnDestroy()
+        [ContextMenu("Debug Viewport Info")]
+        public void DebugViewportInfo()
         {
-            Clear();
+            if (talentScrollRect?.viewport != null)
+            {
+                var viewportSize = talentScrollRect.viewport.rect.size;
+                var contentSize = talentTreeContent.sizeDelta;
+                
+                Debug.Log($"=== MOBILE VIEWPORT DEBUG ===");
+                Debug.Log($"Viewport Size: {viewportSize.x:F0} x {viewportSize.y:F0}");
+                Debug.Log($"Content Size: {contentSize.x:F0} x {contentSize.y:F0}");
+                Debug.Log($"Nodes per viewport: {viewportSize.y / 400f:F1}"); // Assuming 400px spacing
+                Debug.Log($"Normal Positions: {normalStatsPositions.Count}");
+                Debug.Log($"Special Positions: {specialSkillsPositions.Count}");
+                
+                if (normalStatsPositions.Count > 0)
+                {
+                    var firstNode = normalStatsPositions[0];
+                    var lastNode = normalStatsPositions[normalStatsPositions.Count - 1];
+                    var totalHeight = lastNode.y - firstNode.y;
+                    Debug.Log($"Normal column height: {totalHeight:F0}px");
+                }
+            }
         }
 
         // Debug methods
-        [ContextMenu("Refresh Talent Tree")]
-        public void RefreshTalentTreeDebug()
+        [ContextMenu("Debug Content Bounds")]
+        public void DebugContentBounds()
         {
-            RefreshTalentTree();
-        }
+            if (!isInitialized) return;
 
-        [ContextMenu("Toggle Connection Lines")]
-        public void ToggleConnectionLines()
-        {
-            showConnectionLines = !showConnectionLines;
+            var allPositions = normalStatsPositions.Concat(specialSkillsPositions);
+            if (!allPositions.Any()) return;
 
-            if (showConnectionLines && connectionRenderer != null)
-            {
-                DrawAllConnectionLines();
-            }
-            else if (connectionRenderer != null)
-            {
-                connectionRenderer.ClearAllLines();
-            }
+            float minX = allPositions.Min(p => p.x);
+            float maxX = allPositions.Max(p => p.x);
+            float minY = allPositions.Min(p => p.y);
+            float maxY = allPositions.Max(p => p.y);
 
-            Debug.Log($"[TalentWindow] Connection lines: {(showConnectionLines ? "ON" : "OFF")}");
-        }
-
-        [ContextMenu("Test Connection Renderer")]
-        public void TestConnectionRenderer()
-        {
-            if (connectionRenderer != null)
+            Debug.Log($"=== CONTENT BOUNDS DEBUG ===");
+            Debug.Log($"Content Size: {talentTreeContent.sizeDelta}");
+            Debug.Log($"Content Position: {talentTreeContent.anchoredPosition}");
+            Debug.Log($"Content Anchor: {talentTreeContent.anchorMin} to {talentTreeContent.anchorMax}");
+            Debug.Log($"Content Pivot: {talentTreeContent.pivot}");
+            Debug.Log($"Node Bounds: X({minX} to {maxX}), Y({minY} to {maxY})");
+            Debug.Log($"Normal Positions: {normalStatsPositions.Count}");
+            Debug.Log($"Special Positions: {specialSkillsPositions.Count}");
+            
+            if (talentScrollRect != null)
             {
-                connectionRenderer.TestDrawBaseStats();
-                connectionRenderer.TestDrawSpecialSkills();
-            }
-            else
-            {
-                Debug.LogWarning("[TalentWindow] TalentConnectionRenderer not found!");
+                Debug.Log($"Scroll Position: {talentScrollRect.verticalNormalizedPosition}");
+                Debug.Log($"Viewport Size: {talentScrollRect.viewport.rect.size}");
             }
         }
 
-        [ContextMenu("Log Talent Tree State")]
-        public void LogTalentTreeState()
+        [ContextMenu("Force Scroll to Bottom")]
+        public void ForceScrollToBottom()
         {
-            Debug.Log($"[TalentWindow] Active nodes: {activeNodes.Count}, Pooled nodes: {nodePool.Count}");
-            Debug.Log($"[TalentWindow] Base stats positions: {baseStatsPositions.Count}, Special skills: {specialSkillsPositions.Count}");
-            Debug.Log($"[TalentWindow] Connection renderer: {(connectionRenderer != null ? "Found" : "Missing")}");
+            if (talentScrollRect != null)
+            {
+                talentScrollRect.verticalNormalizedPosition = 0f;
+                Debug.Log("Forced scroll to bottom");
+            }
+        }
+
+        [ContextMenu("Refresh Layout")]
+        public void RefreshLayoutDebug()
+        {
+            if (talentTreeContent != null)
+            {
+                UnityEngine.UI.LayoutRebuilder.ForceRebuildLayoutImmediate(talentTreeContent);
+                Debug.Log("Layout refreshed");
+            }
         }
     }
 }

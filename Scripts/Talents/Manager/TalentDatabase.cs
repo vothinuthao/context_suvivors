@@ -2,6 +2,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using OctoberStudio.Upgrades;
 using TwoSleepyCats.CSVReader.Core;
 using TwoSleepyCats.Patterns.Singleton;
 using UnityEngine;
@@ -10,38 +11,48 @@ using Talents.Data;
 namespace Talents.Manager
 {
     /// <summary>
-    /// Database for managing talent data loaded from CSV
+    /// Database that auto-generates normal stats (LEFT column) and loads special skills (RIGHT column) from CSV
+    /// Spawns from bottom to top for mobile-friendly scrolling
     /// </summary>
     public class TalentDatabase : MonoSingleton<TalentDatabase>
     {
-        [Header("Loading Settings")]
-        [SerializeField] private bool loadOnStart = true;
-        [SerializeField] private bool preloadAllData = false;
+        [Header("Normal Stats Generation")]
+        [SerializeField] private int maxPlayerLevel = 50;
+        [SerializeField] private float baseStatStartValue = 5f;
+        [SerializeField] private float baseStatGrowthRate = 1.2f;
+        [SerializeField] private int baseCost = 50;
+        [SerializeField] private float costGrowthRate = 1.1f;
+        
+        [Header("Layout Settings")]
+        [SerializeField] private float leftColumnX = -200f;   // Normal stats column
+        [SerializeField] private float rightColumnX = 200f;   // Special skills column
+        [SerializeField] private float normalNodeSpacing = 400f;    // 4 nodes visible
+        [SerializeField] private float specialNodeSpacing = 450f;  // Spacing for special skills
+        [SerializeField] private float tierSpacing = 100f;         // Extra spacing between tiers
+        [SerializeField] private float startY = 0f;                // Start from center (no offset)
         
         [Header("Debug Info")]
         [SerializeField, ReadOnly] private int totalTalentCount = 0;
         [SerializeField, ReadOnly] private bool isDataLoaded = false;
         [SerializeField, ReadOnly] private string loadStatus = "Not Loaded";
 
-        // Talent data organized by type and position
+        // Talent collections
         private Dictionary<int, TalentModel> talentsById = new Dictionary<int, TalentModel>();
         private List<TalentModel> normalTalents = new List<TalentModel>();
         private List<TalentModel> specialTalents = new List<TalentModel>();
         private List<TalentModel> allTalents = new List<TalentModel>();
-
-        // Talent tree structure
-        private Dictionary<int, List<int>> talentDependencies = new Dictionary<int, List<int>>();
-        private Dictionary<int, List<int>> talentUnlocks = new Dictionary<int, List<int>>();
         
-        private List<TalentModel> baseStatsTalents = new List<TalentModel>();
-        private List<TalentModel> specialSkillsTalents = new List<TalentModel>();
+        // Auto-generated normal stats pattern
+        private readonly BaseStatType[] statPattern = { 
+            BaseStatType.ATK, 
+            BaseStatType.HP, 
+            BaseStatType.Armor, 
+            BaseStatType.Healing 
+        };
 
         // Events
         public event System.Action OnDataLoaded;
         public event System.Action<string> OnLoadingError;
-        
-        public List<TalentModel> BaseStatsTalents => baseStatsTalents;
-        public List<TalentModel> SpecialSkillsTalents => specialSkillsTalents;
 
         // Properties
         public bool IsDataLoaded => isDataLoaded;
@@ -53,234 +64,307 @@ namespace Talents.Manager
         {
             base.Initialize();
             
-            if (loadOnStart)
-            {
-                LoadTalentData();
-            }
+            // Set mobile-optimized spacing by default
+            SetMobileSpacing();
+            
+            LoadTalentData();
         }
+
         public void LoadTalentData()
         {
             StartCoroutine(LoadTalentDataCoroutine());
         }
 
-
         private IEnumerator LoadTalentDataCoroutine()
         {
             loadStatus = "Loading...";
-            Debug.Log("[TalentDatabase] Starting to load talent data from CSV...");
 
-            bool loadCompleted = false;
-            List<TalentModel> talentData = null;
-            string errorMessage = null;
-
-            // Start the async load
+            // Load special skills from CSV - yield OUTSIDE of try/catch
             var loadTask = CsvDataManager.Instance.LoadAsync<TalentModel>();
-    
-            // Wait for completion
             yield return new WaitUntil(() => loadTask.IsCompleted);
 
-            if (loadTask.Exception != null)
+            // Handle the result in try/catch (no yield statements here)
+            try
             {
-                errorMessage = loadTask.Exception.GetBaseException().Message;
-            }
-            else
-            {
-                talentData = loadTask.Result;
-            }
-
-            // Process on main thread
-            if (string.IsNullOrEmpty(errorMessage) && talentData != null)
-            {
-                try
+                if (loadTask.Exception != null)
                 {
-                    ProcessTalentData(talentData);
-            
-                    isDataLoaded = true;
-                    loadStatus = $"Loaded {totalTalentCount} talents";
-                    OnDataLoaded?.Invoke();
-            
-                    Debug.Log($"[TalentDatabase] Loaded {totalTalentCount} talents successfully");
+                    throw loadTask.Exception.GetBaseException();
                 }
-                catch (Exception ex)
-                {
-                    errorMessage = ex.Message;
-                }
-            }
 
-            if (!string.IsNullOrEmpty(errorMessage))
+                var specialSkillsData = loadTask.Result;
+                
+                // Process all talent data
+                ProcessTalentData(specialSkillsData);
+                
+                isDataLoaded = true;
+                loadStatus = $"Loaded {totalTalentCount} talents";
+                OnDataLoaded?.Invoke();
+            }
+            catch (Exception ex)
             {
                 isDataLoaded = false;
-                loadStatus = $"Error: {errorMessage}";
-                OnLoadingError?.Invoke(errorMessage);
-                Debug.LogError($"[TalentDatabase] Failed to load talent data: {errorMessage}");
+                loadStatus = $"Error: {ex.Message}";
+                OnLoadingError?.Invoke(ex.Message);
+                Debug.LogError($"[TalentDatabase] Failed to load: {ex.Message}");
             }
         }
 
         /// <summary>
-        /// Process and organize loaded talent data
+        /// Process and organize talent data - auto-generate normal stats + load special skills
         /// </summary>
-        private void ProcessTalentData(List<TalentModel> talentData)
+        private void ProcessTalentData(List<TalentModel> specialSkillsData)
         {
-            // Clear existing data
             ClearData();
 
-            // Process each talent
-            foreach (var talent in talentData)
-            {
-                if (talent.ValidateData())
-                {
-                    // Add to main collections
-                    allTalents.Add(talent);
-                    talentsById[talent.ID] = talent;
+            // 1. Auto-generate normal stats
+            GenerateNormalStats();
+
+            // 2. Process special skills from CSV
+            ProcessSpecialSkills(specialSkillsData);
+
+            // 3. Combine and finalize
+            CombineAllTalents();
             
-                    // Phân loại theo logic mới
-                    if (talent.IsBaseStat)
-                    {
-                        baseStatsTalents.Add(talent);
-                        normalTalents.Add(talent); // Giữ cho backward compatibility
-                    }
-                    else if (talent.IsSpecialSkill)
-                    {
-                        specialSkillsTalents.Add(talent);
-                        specialTalents.Add(talent); // Giữ cho backward compatibility
-                    }
-                }
-                else
-                {
-                    Debug.LogWarning($"[TalentDatabase] Invalid talent data: {talent}");
-                }
-            }
-
-            // Build dependency tree (giữ nguyên cho special skills nếu cần)
-            BuildDependencyTree();
-
-            // Sort talents
-            SortTalentsByType();
-
             totalTalentCount = allTalents.Count;
-    
-            Debug.Log($"[TalentDatabase] Processed {totalTalentCount} talents " +
-                      $"({baseStatsTalents.Count} base stats, {specialSkillsTalents.Count} special skills)");
         }
 
         /// <summary>
-        /// Build talent dependency relationships
+        /// Auto-generate normal stats based on pattern and player levels
         /// </summary>
-        private void BuildDependencyTree()
+        private void GenerateNormalStats()
         {
-            talentDependencies.Clear();
-            talentUnlocks.Clear();
+            int normalStatId = 1; // Start from ID 1
+            float currentY = startY; // Start from bottom
 
-            foreach (var talent in allTalents)
+            // Generate stats for each "cycle" based on max player level
+            int cycles = Mathf.CeilToInt((float)maxPlayerLevel / statPattern.Length);
+            
+            for (int cycle = 0; cycle < cycles; cycle++)
             {
-                if (talent.RequiredTalentId > 0 && talentsById.ContainsKey(talent.RequiredTalentId))
+                for (int i = 0; i < statPattern.Length; i++)
                 {
-                    // This talent depends on another talent
-                    if (!talentDependencies.ContainsKey(talent.ID))
-                    {
-                        talentDependencies[talent.ID] = new List<int>();
-                    }
-                    talentDependencies[talent.ID].Add(talent.RequiredTalentId);
+                    var statType = statPattern[i];
+                    int level = cycle + 1;
+                    
+                    // Stop if we exceed max player level
+                    int requiredPlayerLevel = (cycle * statPattern.Length) + i + 1;
+                    if (requiredPlayerLevel > maxPlayerLevel) break;
 
-                    // The required talent unlocks this talent
-                    if (!talentUnlocks.ContainsKey(talent.RequiredTalentId))
+                    var normalStat = CreateNormalStat(normalStatId, statType, level, currentY, requiredPlayerLevel);
+                    normalTalents.Add(normalStat);
+                    talentsById[normalStatId] = normalStat;
+
+                    normalStatId++;
+                    currentY += normalNodeSpacing; // Use specific spacing for normal stats
+                    
+                    // Add extra spacing between complete cycles (tiers)
+                    if (i == statPattern.Length - 1 && cycle < cycles - 1)
                     {
-                        talentUnlocks[talent.RequiredTalentId] = new List<int>();
+                        currentY += tierSpacing;
                     }
-                    talentUnlocks[talent.RequiredTalentId].Add(talent.ID);
                 }
             }
         }
 
         /// <summary>
-        /// Sort talents by their position for proper display order
+        /// Create a normal stat talent
         /// </summary>
-        private void SortTalentsByType()
+        private TalentModel CreateNormalStat(int id, BaseStatType statType, int tier, float posY, int requiredLevel)
         {
-            // Sort Base Stats theo thứ tự: ATK, HP, Armor, Healing
-            baseStatsTalents.Sort((a, b) => {
-                var orderA = GetBaseStatOrder(a);
-                var orderB = GetBaseStatOrder(b);
-                return orderA.CompareTo(orderB);
-            });
-    
-            specialSkillsTalents.Sort((a, b) => a.RequiredPlayerLevel.CompareTo(b.RequiredPlayerLevel));
-        }
-        private int GetBaseStatOrder(TalentModel talent)
-        {
-            var baseStatType = talent.GetBaseStatType();
-            if (!baseStatType.HasValue) return 999;
-    
-            switch (baseStatType.Value)
+            var talent = new TalentModel
             {
-                case BaseStatType.ATK: return 0;
-                case BaseStatType.HP: return 1;
-                case BaseStatType.Armor: return 2;
-                case BaseStatType.Healing: return 3;
-                default: return 999;
+                ID = id,
+                Name = GetStatName(statType, tier),
+                Description = GetStatDescription(statType, tier),
+                StatValue = CalculateStatValue(statType, tier),
+                StatType = GetUpgradeType(statType),
+                StatTypeString = GetUpgradeType(statType).ToString(),
+                NodeType = TalentNodeType.Normal,
+                NodeTypeString = "Normal",
+                PositionX = leftColumnX,  // Normal stats on LEFT column
+                PositionY = posY,
+                Cost = CalculateCost(tier),
+                MaxLevel = 10, // All normal stats can be upgraded 10 times
+                RequiredPlayerLevel = requiredLevel,
+                IconPath = GetStatIconPath(statType)
+            };
+
+            talent.OnDataLoaded();
+            return talent;
+        }
+
+        /// <summary>
+        /// Get stat name with tier
+        /// </summary>
+        private string GetStatName(BaseStatType statType, int tier)
+        {
+            string baseName = statType switch
+            {
+                BaseStatType.ATK => "Attack",
+                BaseStatType.HP => "Health", 
+                BaseStatType.Armor => "Armor",
+                BaseStatType.Healing => "Healing",
+                _ => "Unknown"
+            };
+
+            return tier > 1 ? $"{baseName} {ToRoman(tier)}" : baseName;
+        }
+
+        /// <summary>
+        /// Get stat description
+        /// </summary>
+        private string GetStatDescription(BaseStatType statType, int tier)
+        {
+            return statType switch
+            {
+                BaseStatType.ATK => $"Increase base attack damage (Tier {tier})",
+                BaseStatType.HP => $"Increase maximum health (Tier {tier})",
+                BaseStatType.Armor => $"Reduce incoming damage (Tier {tier})",
+                BaseStatType.Healing => $"Increase health regeneration (Tier {tier})",
+                _ => "Unknown stat"
+            };
+        }
+
+        /// <summary>
+        /// Calculate stat value based on tier
+        /// </summary>
+        private float CalculateStatValue(BaseStatType statType, int tier)
+        {
+            float baseValue = statType switch
+            {
+                BaseStatType.ATK => baseStatStartValue,
+                BaseStatType.HP => baseStatStartValue * 4f, // HP has higher base value
+                BaseStatType.Armor => baseStatStartValue * 0.5f, // Armor has lower base value
+                BaseStatType.Healing => baseStatStartValue * 0.3f, // Healing has lowest base value
+                _ => baseStatStartValue
+            };
+
+            // Apply tier growth
+            return baseValue * Mathf.Pow(baseStatGrowthRate, tier - 1);
+        }
+
+        /// <summary>
+        /// Calculate cost based on tier
+        /// </summary>
+        private int CalculateCost(int tier)
+        {
+            return Mathf.RoundToInt(baseCost * Mathf.Pow(costGrowthRate, tier - 1));
+        }
+
+        /// <summary>
+        /// Get upgrade type from base stat type
+        /// </summary>
+        private UpgradeType GetUpgradeType(BaseStatType statType)
+        {
+            return statType switch
+            {
+                BaseStatType.ATK => UpgradeType.Damage,
+                BaseStatType.HP => UpgradeType.Health,
+                BaseStatType.Armor => UpgradeType.Damage, // Map to damage for damage reduction
+                BaseStatType.Healing => UpgradeType.Health, // Map to health for healing
+                _ => UpgradeType.Health
+            };
+        }
+
+        /// <summary>
+        /// Get icon path for stat type
+        /// </summary>
+        private string GetStatIconPath(BaseStatType statType)
+        {
+            return statType switch
+            {
+                BaseStatType.ATK => "atk_icon",
+                BaseStatType.HP => "hp_icon", 
+                BaseStatType.Armor => "armor_icon",
+                BaseStatType.Healing => "healing_icon",
+                _ => "default_icon"
+            };
+        }
+
+        /// <summary>
+        /// Process special skills from CSV data
+        /// </summary>
+        private void ProcessSpecialSkills(List<TalentModel> specialSkillsData)
+        {
+            float currentY = startY; // Start from bottom
+            
+            // Sort special skills by required player level
+            var sortedSpecialSkills = specialSkillsData
+                .Where(t => t.NodeTypeString?.ToLower() == "special")
+                .OrderBy(t => t.RequiredPlayerLevel)
+                .ToList();
+
+            foreach (var skill in sortedSpecialSkills)
+            {
+                // Set position - special skills on the RIGHT
+                skill.PositionX = rightColumnX;
+                skill.PositionY = currentY;
+                
+                // Ensure it's marked as special
+                skill.NodeType = TalentNodeType.Special;
+                skill.OnDataLoaded();
+
+                specialTalents.Add(skill);
+                talentsById[skill.ID] = skill;
+
+                currentY += specialNodeSpacing; // Use specific spacing for special skills
             }
         }
 
         /// <summary>
-        /// Clear all cached data
+        /// Combine all talents and sort
+        /// </summary>
+        private void CombineAllTalents()
+        {
+            allTalents.Clear();
+            allTalents.AddRange(normalTalents);
+            allTalents.AddRange(specialTalents);
+            
+            // Sort by position Y (bottom to top)
+            allTalents.Sort((a, b) => a.PositionY.CompareTo(b.PositionY));
+        }
+
+        /// <summary>
+        /// Convert number to Roman numerals
+        /// </summary>
+        private string ToRoman(int number)
+        {
+            if (number <= 1) return "";
+            
+            return number switch
+            {
+                2 => "II",
+                3 => "III", 
+                4 => "IV",
+                5 => "V",
+                6 => "VI",
+                7 => "VII",
+                8 => "VIII",
+                9 => "IX",
+                10 => "X",
+                _ => number.ToString()
+            };
+        }
+
+        /// <summary>
+        /// Clear all data
         /// </summary>
         private void ClearData()
         {
             allTalents.Clear();
             normalTalents.Clear();
             specialTalents.Clear();
-            baseStatsTalents.Clear();      // Thêm
-            specialSkillsTalents.Clear();  // Thêm
             talentsById.Clear();
-            talentDependencies.Clear();
-            talentUnlocks.Clear();
             totalTalentCount = 0;
         }
-        /// <summary>
-        /// Get Base Stat talent by type
-        /// </summary>
-        public TalentModel GetBaseStatTalent(BaseStatType statType)
-        {
-            return baseStatsTalents.FirstOrDefault(t => t.GetBaseStatType() == statType);
-        }
 
-        /// <summary>
-        /// Get all Base Stats talents ordered by type
-        /// </summary>
-        public List<TalentModel> GetOrderedBaseStats()
-        {
-            return baseStatsTalents.OrderBy(GetBaseStatOrder).ToList();
-        }
-
-        /// <summary>
-        /// Get Special Skills available for player level
-        /// </summary>
-        public List<TalentModel> GetAvailableSpecialSkills(int playerLevel)
-        {
-            return specialSkillsTalents.Where(t => t.RequiredPlayerLevel <= playerLevel).ToList();
-        }
-
-        /// <summary>
-        /// Get next Special Skill to unlock
-        /// </summary>
-        public TalentModel GetNextSpecialSkill(int playerLevel)
-        {
-            return specialSkillsTalents
-                .Where(t => t.RequiredPlayerLevel > playerLevel)
-                .OrderBy(t => t.RequiredPlayerLevel)
-                .FirstOrDefault();
-        }
+        // Public API methods remain the same as before...
+        
         /// <summary>
         /// Get talent by ID
         /// </summary>
         public TalentModel GetTalentById(int id)
         {
-            if (!isDataLoaded)
-            {
-                Debug.LogWarning("[TalentDatabase] Data not loaded yet!");
-                return null;
-            }
-
             return talentsById.GetValueOrDefault(id);
         }
 
@@ -289,60 +373,7 @@ namespace Talents.Manager
         /// </summary>
         public TalentModel[] GetAllTalents()
         {
-            if (!isDataLoaded)
-            {
-                Debug.LogWarning("[TalentDatabase] Data not loaded yet!");
-                return Array.Empty<TalentModel>();
-            }
-
             return allTalents.ToArray();
-        }
-
-        /// <summary>
-        /// Get talents that this talent depends on
-        /// </summary>
-        public List<int> GetTalentDependencies(int talentId)
-        {
-            return talentDependencies.GetValueOrDefault(talentId, new List<int>());
-        }
-
-        /// <summary>
-        /// Get talents that this talent unlocks
-        /// </summary>
-        public List<int> GetTalentUnlocks(int talentId)
-        {
-            return talentUnlocks.GetValueOrDefault(talentId, new List<int>());
-        }
-
-        /// <summary>
-        /// Check if a talent exists
-        /// </summary>
-        public bool HasTalent(int talentId)
-        {
-            return isDataLoaded && talentsById.ContainsKey(talentId);
-        }
-
-        /// <summary>
-        /// Get talents by node type
-        /// </summary>
-        public List<TalentModel> GetTalentsByType(TalentNodeType nodeType)
-        {
-            if (!isDataLoaded)
-            {
-                Debug.LogWarning("[TalentDatabase] Data not loaded yet!");
-                return new List<TalentModel>();
-            }
-
-            return nodeType == TalentNodeType.Normal ? normalTalents : specialTalents;
-        }
-
-        /// <summary>
-        /// Get max talent level for a specific talent
-        /// </summary>
-        public int GetMaxTalentLevel(int talentId)
-        {
-            var talent = GetTalentById(talentId);
-            return talent?.MaxLevel ?? 0;
         }
 
         /// <summary>
@@ -353,88 +384,120 @@ namespace Talents.Manager
             var talent = GetTalentById(talentId);
             if (talent == null) return 0;
 
-            if (talent.IsBaseStat)
+            if (talent.NodeType == TalentNodeType.Normal)
             {
+                // Normal stats: cost increases with each upgrade level
                 return talent.Cost * targetLevel;
             }
-            else if (talent.IsSpecialSkill)
+            else
             {
+                // Special skills: fixed cost
                 return talent.Cost;
             }
-
-            return talent.Cost * targetLevel;
         }
+
         /// <summary>
-        /// Validate talent tree structure
+        /// Get talents that don't have dependencies (for simplified system)
         /// </summary>
-        public bool ValidateTalentTree()
+        public List<int> GetTalentDependencies(int talentId)
         {
-            bool isValid = true;
-    
-            // Check Base Stats
-            var expectedBaseStats = new[] { 
-                BaseStatType.ATK, 
-                BaseStatType.HP, 
-                BaseStatType.Armor, 
-                BaseStatType.Healing 
-            };
-    
-            foreach (var expectedStat in expectedBaseStats)
+            // In this simplified system, no dependencies
+            return new List<int>();
+        }
+
+        /// <summary>
+        /// Get talents unlocked by this talent
+        /// </summary>
+        public List<int> GetTalentUnlocks(int talentId)
+        {
+            // In this simplified system, no unlock chains
+            return new List<int>();
+        }
+
+        /// <summary>
+        /// Check if talent exists
+        /// </summary>
+        public bool HasTalent(int talentId)
+        {
+            return isDataLoaded && talentsById.ContainsKey(talentId);
+        }
+
+        /// <summary>
+        /// Get max talent level
+        /// </summary>
+        public int GetMaxTalentLevel(int talentId)
+        {
+            var talent = GetTalentById(talentId);
+            return talent?.MaxLevel ?? 0;
+        }
+
+        /// <summary>
+        /// Get normal stats for specific tier/cycle
+        /// </summary>
+        public List<TalentModel> GetNormalStatsForTier(int tier)
+        {
+            return normalTalents.Where(t => t.Name.Contains(ToRoman(tier)) || (tier == 1 && !t.Name.Contains("II"))).ToList();
+        }
+
+        /// <summary>
+        /// Get special skills available for player level
+        /// </summary>
+        public List<TalentModel> GetAvailableSpecialSkills(int playerLevel)
+        {
+            return specialTalents.Where(t => t.RequiredPlayerLevel <= playerLevel).ToList();
+        }
+
+        /// <summary>
+        /// Get next tier of stats to unlock
+        /// </summary>
+        public List<TalentModel> GetNextTierStats(int currentPlayerLevel)
+        {
+            return normalTalents.Where(t => t.RequiredPlayerLevel == currentPlayerLevel + 1).ToList();
+        }
+
+        /// <summary>
+        /// Set custom spacing values
+        /// </summary>
+        public void SetSpacing(float normalSpacing, float specialSpacing, float tierSpacing = 0f)
+        {
+            this.normalNodeSpacing = normalSpacing;
+            this.specialNodeSpacing = specialSpacing;
+            this.tierSpacing = tierSpacing;
+            
+            // Regenerate layout if data is loaded
+            if (isDataLoaded)
             {
-                var talent = GetBaseStatTalent(expectedStat);
-                if (talent == null)
-                {
-                    Debug.LogError($"[TalentDatabase] Missing Base Stat: {expectedStat}");
-                    isValid = false;
-                }
+                var specialData = specialTalents.ToList();
+                ProcessTalentData(specialData);
             }
-    
-            // Check Special Skills có level requirements hợp lý
-            foreach (var skill in specialSkillsTalents)
-            {
-                if (skill.RequiredPlayerLevel < 1 || skill.RequiredPlayerLevel > 100)
-                {
-                    Debug.LogWarning($"[TalentDatabase] Unusual player level requirement for {skill.Name}: {skill.RequiredPlayerLevel}");
-                }
-        
-                if (skill.MaxLevel > 1)
-                {
-                    Debug.LogWarning($"[TalentDatabase] Special Skill {skill.Name} has MaxLevel > 1: {skill.MaxLevel}");
-                }
-            }
-    
-            return isValid;
         }
+
         /// <summary>
-        /// Check if talent has prerequisites
+        /// Quick spacing presets
         /// </summary>
-        public bool HasPrerequisites(int talentId)
+        [ContextMenu("Mobile Spacing (1080x2160)")]
+        public void SetMobileSpacing()
         {
-            return talentDependencies.ContainsKey(talentId) && talentDependencies[talentId].Count > 0;
+            SetSpacing(400f, 450f, 100f); // 4 nodes visible
         }
 
-        /// <summary>
-        /// Get formatted talent tree info for debugging
-        /// </summary>
-        public string GetTalentTreeInfo()
+        [ContextMenu("Compact Spacing")]
+        public void SetCompactSpacing()
         {
-            if (!isDataLoaded)
-                return "Database not loaded";
-
-            var info = $"=== TALENT TREE INFO ===\n";
-            info += $"Total Talents: {totalTalentCount}\n";
-            info += $"Base Stats: {baseStatsTalents.Count}\n";
-            info += $"Special Skills: {specialSkillsTalents.Count}\n";
-            info += $"Dependencies: {talentDependencies.Count}\n";
-            info += $"Unlock Chains: {talentUnlocks.Count}\n";
-            info += $"Structure Valid: {ValidateTalentTree()}\n";
-
-            return info;
+            SetSpacing(300f, 350f, 50f); // 5-6 nodes visible
         }
 
-        /// <summary>
-        /// Force reload data from CSV
-        /// </summary>
+        [ContextMenu("Normal Spacing")]
+        public void SetNormalSpacing()
+        {
+            SetSpacing(400f, 450f, 100f); // 4 nodes visible (default)
+        }
+
+        [ContextMenu("Wide Spacing")]
+        public void SetWideSpacing()
+        {
+            SetSpacing(500f, 550f, 150f); // 3 nodes visible
+        }
         [ContextMenu("Reload Talent Data")]
         public async void ReloadTalentData()
         {
@@ -443,61 +506,79 @@ namespace Talents.Manager
                 isDataLoaded = false;
                 loadStatus = "Reloading...";
                 
-                var talentData = await CsvDataManager.Instance.ForceReloadAsync<TalentModel>();
-                ProcessTalentData(talentData);
+                var specialSkillsData = await CsvDataManager.Instance.ForceReloadAsync<TalentModel>();
+                ProcessTalentData(specialSkillsData);
                 
                 isDataLoaded = true;
                 loadStatus = $"Reloaded {totalTalentCount} talents";
                 OnDataLoaded?.Invoke();
-                
-                Debug.Log($"[TalentDatabase] Reloaded {totalTalentCount} talents successfully");
             }
             catch (Exception ex)
             {
                 isDataLoaded = false;
                 loadStatus = $"Reload Error: {ex.Message}";
                 OnLoadingError?.Invoke(ex.Message);
-                Debug.LogError($"[TalentDatabase] Failed to reload talent data: {ex.Message}");
+                Debug.LogError($"[TalentDatabase] Failed to reload: {ex.Message}");
             }
         }
 
         /// <summary>
-        /// Log talent tree structure
+        /// Log talent info for debugging
         /// </summary>
         [ContextMenu("Log Talent Tree")]
         public void LogTalentTree()
         {
-            if (!isDataLoaded)
-            {
-                Debug.Log("[TalentDatabase] Database not loaded");
-                return;
-            }
+            if (!isDataLoaded) return;
 
-            Debug.Log(GetTalentTreeInfo());
+            Debug.Log($"=== AUTO-GENERATED TALENT TREE ===");
+            Debug.Log($"Total: {totalTalentCount} ({normalTalents.Count} normal, {specialTalents.Count} special)");
+            Debug.Log($"Max Player Level: {maxPlayerLevel}");
+            Debug.Log($"Stat Pattern: {string.Join(" → ", statPattern)}");
+            Debug.Log($"Layout: Normal Stats (LEFT), Special Skills (RIGHT)");
+            Debug.Log($"Spawn Direction: Bottom to Top (Y: {startY} upward)");
             
-            // Log normal talents
-            Debug.Log("=== NORMAL TALENTS ===");
-            foreach (var talent in normalTalents)
+            Debug.Log("\n=== NORMAL STATS (LEFT COLUMN) ===");
+            for (int i = 0; i < normalTalents.Count; i++)
             {
-                var deps = GetTalentDependencies(talent.ID);
-                var unlocks = GetTalentUnlocks(talent.ID);
-                Debug.Log($"{talent.Name} (ID:{talent.ID}) - Pos:({talent.PositionX},{talent.PositionY}) - Deps:{deps.Count} - Unlocks:{unlocks.Count}");
+                var talent = normalTalents[i];
+                Debug.Log($"{i+1}. {talent.Name} (Lv.{talent.RequiredPlayerLevel}) - Pos: ({talent.PositionX}, {talent.PositionY:F0}) - Value: {talent.StatValue:F1} - Cost: {talent.Cost}");
+                
+                if ((i + 1) % 4 == 0) Debug.Log("--- End of Cycle ---");
             }
 
-            // Log special talents
-            Debug.Log("=== SPECIAL TALENTS ===");
-            foreach (var talent in specialTalents)
+            Debug.Log("\n=== SPECIAL SKILLS (RIGHT COLUMN) ===");
+            foreach (var skill in specialTalents)
             {
-                var deps = GetTalentDependencies(talent.ID);
-                var unlocks = GetTalentUnlocks(talent.ID);
-                Debug.Log($"{talent.Name} (ID:{talent.ID}) - Pos:({talent.PositionX},{talent.PositionY}) - Deps:{deps.Count} - Unlocks:{unlocks.Count}");
+                Debug.Log($"{skill.Name} (Lv.{skill.RequiredPlayerLevel}) - Pos: ({skill.PositionX}, {skill.PositionY:F0}) - Cost: {skill.Cost}");
+            }
+        }
+
+        [ContextMenu("Debug Mobile Layout")]
+        public void DebugMobileLayout()
+        {
+            if (!isDataLoaded) return;
+
+            Debug.Log($"=== MOBILE LAYOUT DEBUG (1080x2160) ===");
+            Debug.Log($"Normal Node Spacing: {normalNodeSpacing}px");
+            Debug.Log($"Special Node Spacing: {specialNodeSpacing}px");
+            Debug.Log($"Tier Spacing: {tierSpacing}px");
+            Debug.Log($"Viewport Height: ~1800px (usable)");
+            Debug.Log($"Nodes per screen: {1800f / normalNodeSpacing:F1}");
+            Debug.Log($"Total Normal Talents: {normalTalents.Count}");
+            Debug.Log($"Total Special Talents: {specialTalents.Count}");
+            
+            if (normalTalents.Count > 0)
+            {
+                var firstNormal = normalTalents[0];
+                var lastNormal = normalTalents[normalTalents.Count - 1];
+                var totalHeight = lastNormal.PositionY - firstNormal.PositionY;
+                var screenCount = totalHeight / 1800f;
+                Debug.Log($"Normal column spans {screenCount:F1} screens");
             }
         }
     }
 
-    /// <summary>
-    /// ReadOnly attribute for inspector display
-    /// </summary>
+    // ReadOnly attribute for inspector
     public class ReadOnlyAttribute : PropertyAttribute { }
 
 #if UNITY_EDITOR
