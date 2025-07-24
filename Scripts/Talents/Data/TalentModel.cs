@@ -118,23 +118,21 @@ namespace Talents.Data
                 case UpgradeType.Damage:
                     return BaseStatType.ATK;
                 case UpgradeType.Health:
-                    return BaseStatType.HP;
+                    return BaseStatType.DEF; // Map Health to Defense for new system
                 default:
-                    if (StatTypeString.ToLower().Contains("armor"))
-                        return BaseStatType.Armor;
-                    if (StatTypeString.ToLower().Contains("healing"))
-                        return BaseStatType.Healing;
+                    if (StatTypeString.ToLower().Contains("def") || StatTypeString.ToLower().Contains("defense"))
+                        return BaseStatType.DEF;
+                    if (StatTypeString.ToLower().Contains("speed"))
+                        return BaseStatType.Speed;
+                    if (StatTypeString.ToLower().Contains("heal"))
+                        return BaseStatType.Heal;
                     return null;
             }
         }
         public string GetCurrencyType()
         {
-            if (IsBaseStat)
-                return "gold";
-            else if (IsSpecialSkill)
-                return "orc"; //  orc currency for special skills
-    
-            return "gold"; // Default
+            // Linear system uses only gold for all talents
+            return "gold";
         }
         /// <summary>
         /// Parse custom stat types that might not be in UpgradeType
@@ -539,9 +537,9 @@ namespace Talents.Data
     }
     public enum BaseStatType
     {
-        ATK,        // Damage
-        HP,         // Health  
-        Armor,      // Defense
-        Healing     // Health Regeneration
+        ATK,        // Attack Damage
+        DEF,        // Defense
+        Speed,      // Movement Speed
+        Heal        // Healing
     }
 }
