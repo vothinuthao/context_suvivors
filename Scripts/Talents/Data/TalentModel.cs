@@ -9,32 +9,40 @@ namespace Talents.Data
     [System.Serializable]
     public class TalentModel : ICsvModel
     {
-        [CsvColumn("id")] public int ID { get; set; }
+        [CsvColumn("id")] 
+        public int ID { get; set; }
         
-        [CsvColumn("icon")] public string IconPath { get; set; }
+        [CsvColumn("icon")] 
+        public string IconPath { get; set; }
         
-        [CsvColumn("name")] public string Name { get; set; }
+        [CsvColumn("name")] 
+        public string Name { get; set; }
         
-        [CsvColumn("description")] public string Description { get; set; }
+        [CsvColumn("description")] 
+        public string Description { get; set; }
         
-        [CsvColumn("stat_value")] public float StatValue { get; set; }
+        [CsvColumn("stat_value")] 
+        public float StatValue { get; set; }
         
-        [CsvColumn("stat_type")] public string StatTypeString { get; set; }
+        [CsvColumn("stat_type")] 
+        public string StatTypeString { get; set; }
         
-        [CsvColumn("node_type")] public string NodeTypeString { get; set; }
+        [CsvColumn("node_type")] 
+        public string NodeTypeString { get; set; }
         
-        [CsvColumn("position_x")] public float PositionX { get; set; }
+        [CsvColumn("position_x")] 
+        public float PositionX { get; set; }
         
-        [CsvColumn("position_y")] public float PositionY { get; set; }
+        [CsvColumn("position_y")] 
+        public float PositionY { get; set; }
         
-        [CsvColumn("required_talent_id", isOptional: true)]
-        public int RequiredTalentId { get; set; } = -1;
+        [CsvColumn("cost")] 
+        public int Cost { get; set; }
         
-        [CsvColumn("cost")] public int Cost { get; set; }
+        [CsvColumn("max_level")] 
+        public int MaxLevel { get; set; } = 1;
         
-        [CsvColumn("max_level")] public int MaxLevel { get; set; } = 1;
-        
-        [CsvColumn("required_player_level", isOptional: true)]
+        [CsvColumn("required_player_level")] 
         public int RequiredPlayerLevel { get; set; } = 1;
         
         // Parsed properties
@@ -62,22 +70,15 @@ namespace Talents.Data
                 _icon = value;
             }
         }
-        [CsvIgnore]
-        public bool IsBaseStat =>
-            StatType == UpgradeType.Damage ||    // ATK
-            StatType == UpgradeType.Health ||     // HP
-            StatTypeString.ToLower().Contains("armor") ||
-            StatTypeString.ToLower().Contains("healing");
         
-        [CsvIgnore]
-        public bool IsSpecialSkill => NodeType == TalentNodeType.Special || !IsBaseStat;
-        
-       
         [CsvIgnore]
         public Vector2 Position => new Vector2(PositionX, PositionY);
         
         [CsvIgnore]
-        public bool HasPrerequisite => RequiredTalentId > 0;
+        public bool IsNormalNode => NodeType == TalentNodeType.Normal;
+        
+        [CsvIgnore]
+        public bool IsSpecialNode => NodeType == TalentNodeType.Special;
 
         public string GetCsvFileName()
         {
@@ -93,7 +94,6 @@ namespace Talents.Data
             }
             else
             {
-                // Try to handle some common stat types that might not be in UpgradeType
                 StatType = ParseCustomStatType(StatTypeString);
             }
             
@@ -106,115 +106,39 @@ namespace Talents.Data
             {
                 NodeType = TalentNodeType.Normal; // Default fallback
             }
-            
-            // Don't load icon here - will be loaded lazily on main thread
         }
-        public BaseStatType? GetBaseStatType()
-        {
-            if (!IsBaseStat) return null;
-    
-            switch (StatType)
-            {
-                case UpgradeType.Damage:
-                    return BaseStatType.ATK;
-                case UpgradeType.Health:
-                    return BaseStatType.HP;
-                default:
-                    if (StatTypeString.ToLower().Contains("armor"))
-                        return BaseStatType.Armor;
-                    if (StatTypeString.ToLower().Contains("healing"))
-                        return BaseStatType.Healing;
-                    return null;
-            }
-        }
-        public string GetCurrencyType()
-        {
-            if (IsBaseStat)
-                return "gold";
-            else if (IsSpecialSkill)
-                return "orc"; //  orc currency for special skills
-    
-            return "gold"; // Default
-        }
+
         /// <summary>
-        /// Parse custom stat types that might not be in UpgradeType
+        /// Parse custom stat types for zone-based system
         /// </summary>
         private UpgradeType ParseCustomStatType(string statTypeString)
         {
             switch (statTypeString.ToLower())
             {
+                case "attack":
+                case "atk":
+                case "damage":
+                    return UpgradeType.Damage;
+                    
+                case "defense":
+                case "def":
+                case "armor":
+                    return UpgradeType.Health; // Defense maps to health system
+                    
+                case "speed":
+                case "spd":
+                case "movement":
+                    return UpgradeType.Speed;
+                    
+                case "healing":
+                case "heal":
+                case "regeneration":
+                    return UpgradeType.Health;
+                    
                 case "health":
                 case "hp":
                     return UpgradeType.Health;
-                case "damage":
-                case "dmg":
-                case "attack":
-                    return UpgradeType.Damage;
-                case "speed":
-                case "movespeed":
-                case "movement":
-                    return UpgradeType.Speed;
-                case "xpmultiplier":
-                case "xp":
-                case "experience":
-                    return UpgradeType.XPMultiplier;
-                case "healthregen":
-                case "regen":
-                case "regeneration":
-                    return UpgradeType.Health; // Map to health for now
-                case "damagereduction":
-                case "armor":
-                case "defense":
-                    return UpgradeType.Damage; // Map to damage for now
-                case "criticalchance":
-                case "crit":
-                    return UpgradeType.Damage; // Map to damage for now
-                case "magnetradius":
-                case "magnet":
-                case "pickup":
-                    return UpgradeType.MagnetRadius;
-                case "luck":
-                case "dropchance":
-                    return UpgradeType.Luck;
-                case "cooldownreduction":
-                case "cooldown":
-                case "cdr":
-                    return UpgradeType.CooldownReduction;
-                case "stamina":
-                case "endurance":
-                    return UpgradeType.Health; // Map to health for now
-                case "mana":
-                case "mp":
-                    return UpgradeType.Health; // Map to health for now
-                case "fireresistance":
-                case "iceresistance":
-                case "poisonresistance":
-                    return UpgradeType.Damage; // Map to damage for now
-                case "attackspeed":
-                case "atkspeed":
-                    return UpgradeType.Speed; // Map to speed for now
-                case "attackrange":
-                case "range":
-                    return UpgradeType.Damage; // Map to damage for now
-                case "multihit":
-                case "projectilecount":
-                case "piercecount":
-                    return UpgradeType.Damage; // Map to damage for now
-                case "criticaldamage":
-                case "critdamage":
-                    return UpgradeType.Damage;
-                case "lifesteal":
-                case "vampirism":
-                    return UpgradeType.Health; // Map to health for now
-                case "revive":
-                case "resurrection":
-                    return UpgradeType.Health; // Map to health for now
-                case "timeslowdown":
-                case "timestop":
-                    return UpgradeType.Speed; // Map to speed for now
-                case "allstats":
-                case "all":
-                    return UpgradeType.Health; // Default to health
+                    
                 default:
                     Debug.LogWarning($"[TalentModel] Unknown stat type: {statTypeString}, defaulting to Health");
                     return UpgradeType.Health;
@@ -222,14 +146,12 @@ namespace Talents.Data
         }
 
         /// <summary>
-        /// Load icon sprite (only on main thread)
+        /// Load icon sprite (main thread only)
         /// </summary>
         private void LoadIcon()
         {
             if (!UnityEngine.Application.isPlaying)
-            {
                 return;
-            }
 
             if (string.IsNullOrEmpty(IconPath))
             {
@@ -243,266 +165,215 @@ namespace Talents.Data
         
                 if (_icon == null)
                 {
-                    Debug.LogWarning($"[TalentModel] Could not load icon for talent {Name} at path: Icons/Talents/{IconPath}");
-                    _icon = Resources.Load<Sprite>("Icons/Talents/default_talent");
-            
+                    // Try fallback icon based on node type
+                    string fallbackPath = NodeType == TalentNodeType.Normal ? 
+                        GetNormalStatFallbackIcon() : "special_default";
+                    
+                    _icon = Resources.Load<Sprite>($"Icons/Talents/{fallbackPath}");
+                    
                     if (_icon == null)
                     {
-                        Debug.LogError($"[TalentModel] Default talent icon not found at: Icons/Talents/default_talent");
+                        _icon = Resources.Load<Sprite>("Icons/Talents/default_talent");
                     }
-                }
-                else
-                {
-                    Debug.Log($"[TalentModel] Successfully loaded icon for {Name}: Icons/Talents/{IconPath}");
                 }
             }
             catch (System.Exception ex)
             {
                 Debug.LogError($"[TalentModel] Failed to load icon for talent {Name}: {ex.Message}");
-                try
-                {
-                    _icon = Resources.Load<Sprite>("Icons/Talents/default_talent");
-                }
-                catch
-                {
-                    Debug.LogError("[TalentModel] Could not load default talent icon");
-                }
+                _icon = Resources.Load<Sprite>("Icons/Talents/default_talent");
             }
         }
 
         /// <summary>
-        /// Get formatted stat bonus text
+        /// Get fallback icon for normal stats
         /// </summary>
-        public string GetStatBonusText(int level = 1)
+        private string GetNormalStatFallbackIcon()
         {
-            float totalBonus = StatValue * level;
-            
-            switch (StatType)
-            {
-                case UpgradeType.Health:
-                    return $"+{totalBonus:F0} Health";
-                case UpgradeType.Damage:
-                    return $"+{totalBonus:F0} Damage";
-                case UpgradeType.Speed:
-                    return $"+{totalBonus * 100:F0}% Speed";
-                case UpgradeType.XPMultiplier:
-                    return $"+{totalBonus * 100:F0}% XP";
-                case UpgradeType.MagnetRadius:
-                    return $"+{totalBonus:F1} Pickup Range";
-                case UpgradeType.CooldownReduction:
-                    return $"-{totalBonus * 100:F0}% Cooldown";
-                case UpgradeType.Luck:
-                    return $"+{totalBonus * 100:F0}% Luck";
-                default:
-                    return $"+{totalBonus:F1} {StatType}";
-            }
+            if (Name.Contains("Attack")) return "atk_icon";
+            if (Name.Contains("Defense")) return "def_icon";
+            if (Name.Contains("Speed")) return "speed_icon";
+            if (Name.Contains("Healing")) return "heal_icon";
+            return "default_talent";
         }
 
         /// <summary>
-        /// Get talent effectiveness at specific level
+        /// Get stat bonus text for UI display
         /// </summary>
-        public float GetEffectivenessAtLevel(int level)
-        {
-            return StatValue * Mathf.Clamp(level, 0, MaxLevel);
-        }
-
-        /// <summary>
-        /// Get total cost to reach specific level
-        /// </summary>
-        public int GetTotalCostToLevel(int targetLevel)
-        {
-            int totalCost = 0;
-            for (int level = 1; level <= targetLevel && level <= MaxLevel; level++)
-            {
-                totalCost += Cost * level; // Cost increases with level
-            }
-            return totalCost;
-        }
-
-        /// <summary>
-        /// Get cost for specific level
-        /// </summary>
-        public int GetCostForLevel(int level)
-        {
-            if (level <= 0 || level > MaxLevel)
-                return 0;
-    
-            if (IsBaseStat)
-            {
-                return Cost * level;
-            }
-            else if (IsSpecialSkill)
-            {
-                return Cost;
-            }
-    
-            return Cost * level;
-        }
-
-        /// <summary>
-        /// Check if talent can be upgraded from current level
-        /// </summary>
-        public bool CanUpgrade(int currentLevel)
-        {
-            return currentLevel < MaxLevel;
-        }
-
-        /// <summary>
-        /// Get talent rarity based on cost and type
-        /// </summary>
-        public TalentRarity GetRarity()
+        public string GetStatBonusText()
         {
             if (NodeType == TalentNodeType.Special)
-                return TalentRarity.Legendary;
-            
-            if (Cost >= 5)
-                return TalentRarity.Epic;
-            else if (Cost >= 3)
-                return TalentRarity.Rare;
-            else if (Cost >= 2)
-                return TalentRarity.Uncommon;
-            else
-                return TalentRarity.Common;
-        }
-
-        /// <summary>
-        /// Get talent category based on stat type
-        /// </summary>
-        public TalentCategory GetCategory()
-        {
-            switch (StatType)
+                return "Special Ability";
+                
+            return StatType switch
             {
-                case UpgradeType.Health:
-                    return TalentCategory.Defensive;
-                case UpgradeType.Damage:
-                    return TalentCategory.Offensive;
-                case UpgradeType.Speed:
-                    return TalentCategory.Mobility;
-                case UpgradeType.XPMultiplier:
-                case UpgradeType.Luck:
-                    return TalentCategory.Utility;
-                case UpgradeType.MagnetRadius:
-                    return TalentCategory.Utility;
-                case UpgradeType.CooldownReduction:
-                    return TalentCategory.Offensive;
-                default:
-                    return TalentCategory.Utility;
-            }
+                UpgradeType.Damage => $"+{StatValue:F0} ATK",
+                UpgradeType.Health => GetHealthStatText(),
+                UpgradeType.Speed => $"+{StatValue:F0} SPD",
+                _ => $"+{StatValue:F1} {StatType}"
+            };
         }
 
         /// <summary>
-        /// Get display color for talent based on rarity
+        /// Get health stat text (could be DEF or HEAL)
+        /// </summary>
+        private string GetHealthStatText()
+        {
+            if (Name.Contains("Defense"))
+                return $"+{StatValue:F0} DEF";
+            if (Name.Contains("Healing"))
+                return $"+{StatValue:F0} HEAL";
+            return $"+{StatValue:F0} HP";
+        }
+
+        /// <summary>
+        /// Get currency type for this talent
+        /// </summary>
+        public string GetCurrencyType()
+        {
+            return NodeType == TalentNodeType.Normal ? "Gold" : "Orc";
+        }
+
+        /// <summary>
+        /// Get talent zone level (same as required player level)
+        /// </summary>
+        public int GetZoneLevel()
+        {
+            return RequiredPlayerLevel;
+        }
+
+        /// <summary>
+        /// Get stat type for normal nodes
+        /// </summary>
+        public NormalStatType? GetNormalStatType()
+        {
+            if (NodeType != TalentNodeType.Normal) return null;
+            
+            if (Name.Contains("Attack")) return NormalStatType.ATK;
+            if (Name.Contains("Defense")) return NormalStatType.DEF;
+            if (Name.Contains("Speed")) return NormalStatType.SPEED;
+            if (Name.Contains("Healing")) return NormalStatType.HEAL;
+            
+            return null;
+        }
+
+        /// <summary>
+        /// Get display color based on node type and stat
         /// </summary>
         public Color GetDisplayColor()
         {
-            switch (GetRarity())
-            {
-                case TalentRarity.Common:
-                    return Color.white;
-                case TalentRarity.Uncommon:
-                    return Color.green;
-                case TalentRarity.Rare:
-                    return Color.blue;
-                case TalentRarity.Epic:
-                    return Color.magenta;
-                case TalentRarity.Legendary:
-                    return Color.yellow;
-                default:
-                    return Color.white;
-            }
+            if (NodeType == TalentNodeType.Special)
+                return new Color(1f, 0.8f, 0f); // Gold for special
+                
+            // Colors for normal stats
+            if (Name.Contains("Attack")) return new Color(1f, 0.3f, 0.3f); // Red
+            if (Name.Contains("Defense")) return new Color(0.3f, 0.3f, 1f); // Blue
+            if (Name.Contains("Speed")) return new Color(0.3f, 1f, 0.3f); // Green
+            if (Name.Contains("Healing")) return new Color(1f, 1f, 0.3f); // Yellow
+            
+            return Color.white;
         }
 
         /// <summary>
-        /// Get formatted description with stat values
+        /// Get formatted description with zone info
         /// </summary>
-        public string GetFormattedDescription(int level = 1)
+        public string GetFormattedDescription()
         {
-            var desc = Description;
-    
-            if (IsBaseStat)
+            string desc = Description;
+            
+            if (NodeType == TalentNodeType.Normal)
             {
-                desc = desc.Replace("{value}", StatValue.ToString(CultureInfo.InvariantCulture));
-                desc = desc.Replace("{total}", GetEffectivenessAtLevel(level).ToString("F1"));
-                desc = desc.Replace("{level}", level.ToString());
-                desc = desc.Replace("{max_level}", MaxLevel.ToString());
-        
-                var baseStatType = GetBaseStatType();
-                if (baseStatType.HasValue)
-                {
-                    desc += $"\n\nBase Stat: {baseStatType.Value}";
-                    desc += $"\nProgress: {level}/{MaxLevel}";
-                }
+                desc += $"\n\nZone Level: {RequiredPlayerLevel}";
+                desc += $"\nStat Bonus: {GetStatBonusText()}";
+                desc += $"\nCost: {Cost} Gold";
             }
-            else if (IsSpecialSkill)
+            else
             {
-                desc += $"\n\nUnlock at Player Level: {RequiredPlayerLevel}";
-                desc += $"\nType: Passive Ability";
+                desc += $"\n\nRequired Player Level: {RequiredPlayerLevel}";
+                desc += $"\nCost: {Cost} Orc";
+                desc += $"\nType: Special Ability";
             }
-    
+            
             return desc;
         }
 
         /// <summary>
-        /// Check if this talent conflicts with another talent
+        /// Validate talent data
         /// </summary>
-        public bool ConflictsWith(TalentModel other)
+        public bool ValidateData()
         {
-            // Special talents might conflict with each other
-            if (NodeType == TalentNodeType.Special && other.NodeType == TalentNodeType.Special)
+            bool isValid = ID > 0 && 
+                          !string.IsNullOrEmpty(Name) && 
+                          !string.IsNullOrEmpty(Description) &&
+                          Cost > 0 && 
+                          MaxLevel > 0 &&
+                          StatValue >= 0 &&
+                          RequiredPlayerLevel > 0;
+            
+            if (!isValid)
             {
-                // Define conflicts based on talent names or IDs
-                return CheckSpecialTalentConflicts(other);
+                Debug.LogError($"[TalentModel] Invalid data for talent {Name} (ID: {ID})");
             }
             
-            return false;
+            return isValid;
         }
 
         /// <summary>
-        /// Check for special talent conflicts
+        /// Get talent effectiveness (for balancing)
         /// </summary>
-        private bool CheckSpecialTalentConflicts(TalentModel other)
+        public float GetEffectiveness()
         {
-            // Example conflicts - customize based on your game design
-            var conflictGroups = new[]
-            {
-                new[] { "Berserker", "Guardian" }, // Offensive vs Defensive
-                new[] { "Assassin", "Titan" },     // Specialized vs Generalist
-                new[] { "Wizard", "Vampire" },     // Mana vs Health focus
-            };
-
-            foreach (var group in conflictGroups)
-            {
-                if (System.Array.Exists(group, t => t == Name) && 
-                    System.Array.Exists(group, t => t == other.Name))
-                {
-                    return true;
-                }
-            }
-            
-            return false;
+            if (NodeType == TalentNodeType.Special)
+                return Cost; // Special talents effectiveness based on cost
+                
+            return StatValue / Cost; // Normal talents: stat value per cost
         }
 
-        public bool ValidateData()
+        /// <summary>
+        /// Check if talent is in specified zone level
+        /// </summary>
+        public bool IsInZoneLevel(int zoneLevel)
         {
-            bool baseValid = ID > 0 && 
-                             !string.IsNullOrEmpty(Name) && 
-                             !string.IsNullOrEmpty(Description) &&
-                             Cost > 0 && 
-                             MaxLevel > 0 &&
-                             StatValue >= 0;
-    
-            if (!baseValid) return false;
-            if (RequiredPlayerLevel < 1)
+            return RequiredPlayerLevel == zoneLevel;
+        }
+
+        /// <summary>
+        /// Get short display name for UI
+        /// </summary>
+        public string GetShortDisplayName()
+        {
+            if (NodeType == TalentNodeType.Normal)
             {
-                RequiredPlayerLevel = 1;
+                if (Name.Contains("Attack")) return "ATK";
+                if (Name.Contains("Defense")) return "DEF";
+                if (Name.Contains("Speed")) return "SPD";
+                if (Name.Contains("Healing")) return "HEAL";
             }
-    
-            return true;
+            
+            return Name.Length > 8 ? Name.Substring(0, 8) + "..." : Name;
+        }
+
+        /// <summary>
+        /// Compare talents for sorting
+        /// </summary>
+        public int CompareTo(TalentModel other)
+        {
+            if (other == null) return 1;
+            
+            // Sort by zone level first
+            int zoneCompare = RequiredPlayerLevel.CompareTo(other.RequiredPlayerLevel);
+            if (zoneCompare != 0) return zoneCompare;
+            
+            // Then by node type (Normal before Special)
+            int typeCompare = NodeType.CompareTo(other.NodeType);
+            if (typeCompare != 0) return typeCompare;
+            
+            // Finally by position Y
+            return PositionY.CompareTo(other.PositionY);
         }
 
         public override string ToString()
         {
-            return $"{Name} (ID:{ID}) - {GetStatBonusText()} - {NodeType} - Cost:{Cost}";
+            return $"{Name} (ID:{ID}, Zone:{RequiredPlayerLevel}) - {GetStatBonusText()} - Cost:{Cost} {GetCurrencyType()}";
         }
     }
 
@@ -511,37 +382,18 @@ namespace Talents.Data
     /// </summary>
     public enum TalentNodeType
     {
-        Normal,
-        Special
+        Normal,   // ATK, DEF, SPEED, HEAL nodes
+        Special   // Special ability nodes
     }
 
     /// <summary>
-    /// Talent rarity enumeration
+    /// Normal stat type enumeration for zone system
     /// </summary>
-    public enum TalentRarity
+    public enum NormalStatType
     {
-        Common,
-        Uncommon,
-        Rare,
-        Epic,
-        Legendary
-    }
-
-    /// <summary>
-    /// Talent category enumeration
-    /// </summary>
-    public enum TalentCategory
-    {
-        Offensive,
-        Defensive,
-        Mobility,
-        Utility
-    }
-    public enum BaseStatType
-    {
-        ATK,        // Damage
-        HP,         // Health  
-        Armor,      // Defense
-        Healing     // Health Regeneration
+        ATK,    // Attack damage
+        DEF,    // Defense/Armor
+        SPEED,  // Movement speed
+        HEAL    // Healing rate
     }
 }

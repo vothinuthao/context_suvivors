@@ -6,11 +6,12 @@ using TMPro;
 using UnityEngine.Events;
 using Talents.Data;
 using Talents.Manager;
+using Talents.Config;
 
 namespace Talents.UI
 {
     /// <summary>
-    /// Mobile-optimized talent node - Simple click interaction only
+    /// Updated talent node with proper icon loading and layout configuration support
     /// </summary>
     public class TalentNodeBehavior : MonoBehaviour
     {
@@ -20,25 +21,24 @@ namespace Talents.UI
         [SerializeField] private Image nodeBorder;
         [SerializeField] private Button nodeButton;
         [SerializeField] private TMP_Text nameText;
-        [SerializeField] private TMP_Text levelText;
+        [SerializeField] private TMP_Text bonusText;
         [SerializeField] private TMP_Text costText;
 
         [Header("Visual Elements")]
         [SerializeField] private GameObject lockIcon;
-        [SerializeField] private GameObject maxLevelIcon;
-        [SerializeField] private Slider progressSlider;
+        [SerializeField] private GameObject learnedIcon;
         [SerializeField] private Image currencyIcon;
+        [SerializeField] private CanvasGroup nodeCanvasGroup;
 
         [Header("Visual States")]
-        [SerializeField] private Color lockedColor = new Color(0.5f, 0.5f, 0.5f, 0.7f);
+        [SerializeField] private Color lockedColor = new Color(0.4f, 0.4f, 0.4f, 0.8f);
         [SerializeField] private Color availableColor = Color.white;
-        [SerializeField] private Color learnedColor = new Color(0.3f, 1f, 0.3f);
-        [SerializeField] private Color maxLevelColor = new Color(1f, 0.8f, 0f);
-        [SerializeField] private Color insufficientColor = new Color(1f, 0.3f, 0.3f);
+        [SerializeField] private Color learnedColor = new Color(0.2f, 0.8f, 0.2f, 1f);
+        [SerializeField] private Color insufficientColor = new Color(0.8f, 0.2f, 0.2f, 0.8f);
 
         [Header("Animation")]
-        [SerializeField] private float touchScale = 0.95f;
-        [SerializeField] private float animDuration = 0.1f;
+        [SerializeField] private float touchScale = 0.9f;
+        [SerializeField] private float animDuration = 0.15f;
 
         // Properties
         public TalentModel TalentModel { get; private set; }
@@ -52,29 +52,33 @@ namespace Talents.UI
         private RectTransform rectTransform;
         private Vector3 originalScale;
         private bool isAnimating = false;
+        private TalentLayoutConfig layoutConfig;
 
         private void Awake()
         {
             rectTransform = GetComponent<RectTransform>();
             originalScale = transform.localScale;
+            
+            // Get canvas group or create one
+            if (nodeCanvasGroup == null)
+                nodeCanvasGroup = GetComponent<CanvasGroup>();
+            if (nodeCanvasGroup == null)
+                nodeCanvasGroup = gameObject.AddComponent<CanvasGroup>();
+            
             SetupButton();
         }
 
         private void SetupButton()
         {
-            if (nodeButton != null)
-            {
-                nodeButton.onClick.AddListener(OnButtonClicked);
-            }
-            else
-            {
+            if (nodeButton == null)
                 nodeButton = GetComponent<Button>();
-                if (nodeButton == null)
-                    nodeButton = gameObject.AddComponent<Button>();
-                nodeButton.onClick.AddListener(OnButtonClicked);
-            }
+            
+            if (nodeButton == null)
+                nodeButton = gameObject.AddComponent<Button>();
 
-            // Mobile optimization
+            nodeButton.onClick.AddListener(OnButtonClicked);
+
+            // Mobile optimization - disable navigation
             var navigation = nodeButton.navigation;
             navigation.mode = Navigation.Mode.None;
             nodeButton.navigation = navigation;
@@ -82,101 +86,299 @@ namespace Talents.UI
         }
 
         /// <summary>
-        /// Initialize node with talent data
+        /// Initialize node with talent data and layout config
         /// </summary>
         public void Initialize(TalentModel talentModel)
         {
             TalentModel = talentModel;
+            layoutConfig = TalentDatabase.Instance?.LayoutConfig;
             IsInitialized = true;
 
-            // Set position
-            rectTransform.anchoredPosition = new Vector2(talentModel.PositionX, talentModel.PositionY);
-
-            // Setup UI
-            SetIcon(talentModel);
-            SetBasicInfo(talentModel);
-            SetNodeTypeVisuals(talentModel);
+            // Apply layout configuration
+            ApplyLayoutConfiguration();
+            
+            // Setup visual elements
+            SetupIcon(talentModel);
+            SetupTexts(talentModel);
+            SetupCurrencyIcon(talentModel);
+            
+            // Update visual state
             UpdateVisualState();
         }
 
-        private void SetIcon(TalentModel talent)
+        /// <summary>
+        /// Apply layout configuration to node size and position
+        /// </summary>
+        private void ApplyLayoutConfiguration()
         {
-            if (nodeIcon == null) return;
+            if (layoutConfig == null) return;
 
-            if (talent.Icon != null)
+            // Set node size based on type
+            Vector2 nodeSize = TalentModel.NodeType == TalentNodeType.Normal ? 
+                layoutConfig.NormalNodeSize : layoutConfig.SpecialNodeSize;
+            
+            rectTransform.sizeDelta = nodeSize;
+            
+            // Set position from talent model
+            rectTransform.anchoredPosition = new Vector2(TalentModel.PositionX, TalentModel.PositionY);
+            
+            // Apply icon size
+            if (nodeIcon != null)
             {
-                nodeIcon.sprite = talent.Icon;
-            }
-            else
-            {
-                var icon = Resources.Load<Sprite>($"Icons/Talents/{talent.IconPath}");
-                if (icon != null)
-                    nodeIcon.sprite = icon;
-            }
-        }
-
-        private void SetBasicInfo(TalentModel talent)
-        {
-            // Set name
-            if (nameText != null)
-                nameText.text = talent.Name;
-
-            // Set cost with currency
-            if (costText != null)
-                costText.text = talent.Cost.ToString();
-
-            // Set currency icon
-            if (currencyIcon != null)
-            {
-                var iconPath = talent.NodeType == TalentNodeType.Normal ? 
-                    "Icons/UI/gold_icon" : "Icons/UI/orc_icon";
-                var sprite = Resources.Load<Sprite>(iconPath);
-                if (sprite != null)
-                    currencyIcon.sprite = sprite;
-            }
-        }
-
-        private void SetNodeTypeVisuals(TalentModel talent)
-        {
-            if (nodeBackground != null)
-            {
-                Color bgColor = GetNodeColor(talent);
-                nodeBackground.color = bgColor;
-            }
-
-            // Setup progress for normal talents
-            if (progressSlider != null)
-            {
-                bool showProgress = talent.NodeType == TalentNodeType.Normal;
-                progressSlider.gameObject.SetActive(showProgress);
-                
-                if (showProgress)
+                var iconRect = nodeIcon.GetComponent<RectTransform>();
+                if (iconRect != null)
                 {
-                    progressSlider.maxValue = talent.MaxLevel;
-                    progressSlider.interactable = false;
+                    iconRect.sizeDelta = layoutConfig.IconSize;
                 }
             }
         }
 
-        private Color GetNodeColor(TalentModel talent)
+        /// <summary>
+        /// Setup node icon with proper path resolution
+        /// </summary>
+        private void SetupIcon(TalentModel talent)
         {
-            if (talent.NodeType == TalentNodeType.Special)
-                return new Color(1f, 0.8f, 0f); // Gold
+            if (nodeIcon == null) return;
 
-            // Base stat colors
-            switch (talent.StatType)
+            StartCoroutine(LoadIconCoroutine(talent));
+        }
+
+        /// <summary>
+        /// Coroutine to load icon asynchronously
+        /// </summary>
+        private System.Collections.IEnumerator LoadIconCoroutine(TalentModel talent)
+        {
+            yield return new WaitForEndOfFrame(); // Wait for initialization
+
+            Sprite iconSprite = null;
+            
+            // Try to load icon from specified path
+            if (!string.IsNullOrEmpty(talent.IconPath))
             {
-                case UpgradeType.Damage:
-                    return new Color(1f, 0.3f, 0.3f); // Red
-                case UpgradeType.Health:
-                    return new Color(0.3f, 1f, 0.3f); // Green
-                default:
-                    return new Color(0.3f, 0.3f, 1f); // Blue
+                string fullPath = layoutConfig != null ? 
+                    layoutConfig.IconBasePath + talent.IconPath : 
+                    "Icons/Talents/" + talent.IconPath;
+                
+                iconSprite = Resources.Load<Sprite>(fullPath);
+                
+                if (iconSprite == null)
+                {
+                    // Try without base path
+                    iconSprite = Resources.Load<Sprite>(talent.IconPath);
+                }
+                
+                if (iconSprite == null)
+                {
+                    Debug.LogWarning($"[TalentNodeBehavior] Could not load icon at path: {fullPath} for talent {talent.Name}");
+                }
+            }
+            
+            // Use fallback icon if loading failed
+            if (iconSprite == null)
+            {
+                iconSprite = LoadFallbackIcon(talent);
+            }
+            
+            // Apply icon
+            if (iconSprite != null)
+            {
+                nodeIcon.sprite = iconSprite;
+                nodeIcon.color = Color.white;
+            }
+            else
+            {
+                // Create simple colored icon as last resort
+                CreateSimpleIcon(talent);
             }
         }
 
         /// <summary>
-        /// Update visual state based on talent progress
+        /// Load fallback icon based on talent type
+        /// </summary>
+        private Sprite LoadFallbackIcon(TalentModel talent)
+        {
+            string fallbackPath = "";
+            
+            if (talent.NodeType == TalentNodeType.Normal)
+            {
+                fallbackPath = GetDefaultNormalIconPath(talent);
+            }
+            else
+            {
+                fallbackPath = layoutConfig?.DefaultSpecialIcon ?? "special_default";
+            }
+            
+            // Try to load fallback
+            var fallbackSprite = Resources.Load<Sprite>("Icons/Talents/" + fallbackPath);
+            if (fallbackSprite == null)
+            {
+                fallbackSprite = Resources.Load<Sprite>("Icons/Talents/default_talent");
+            }
+            
+            return fallbackSprite;
+        }
+
+        /// <summary>
+        /// Get default icon path for normal talents
+        /// </summary>
+        private string GetDefaultNormalIconPath(TalentModel talent)
+        {
+            if (talent.Name.Contains("Attack") || talent.StatType == UpgradeType.Damage)
+                return "atk_icon";
+            if (talent.Name.Contains("Defense") || talent.Name.Contains("Armor"))
+                return "def_icon";
+            if (talent.Name.Contains("Speed") || talent.StatType == UpgradeType.Speed)
+                return "speed_icon";
+            if (talent.Name.Contains("Heal") || talent.Name.Contains("Health"))
+                return "heal_icon";
+            
+            return layoutConfig?.DefaultNormalIcon ?? "default_normal";
+        }
+
+        /// <summary>
+        /// Create simple colored icon as last resort
+        /// </summary>
+        private void CreateSimpleIcon(TalentModel talent)
+        {
+            if (nodeIcon == null) return;
+            
+            // Create simple colored square
+            var texture = new Texture2D(1, 1);
+            Color iconColor = GetTalentTypeColor(talent);
+            texture.SetPixel(0, 0, iconColor);
+            texture.Apply();
+            
+            var sprite = Sprite.Create(texture, new Rect(0, 0, 1, 1), Vector2.one * 0.5f);
+            nodeIcon.sprite = sprite;
+            nodeIcon.color = Color.white;
+            
+            Debug.LogWarning($"[TalentNodeBehavior] Using generated icon for talent {talent.Name}");
+        }
+
+        /// <summary>
+        /// Get color based on talent type
+        /// </summary>
+        private Color GetTalentTypeColor(TalentModel talent)
+        {
+            if (talent.NodeType == TalentNodeType.Special)
+                return new Color(1f, 0.8f, 0f); // Gold
+                
+            // Colors for normal stats
+            if (talent.Name.Contains("Attack")) return new Color(1f, 0.3f, 0.3f); // Red
+            if (talent.Name.Contains("Defense")) return new Color(0.3f, 0.3f, 1f); // Blue
+            if (talent.Name.Contains("Speed")) return new Color(0.3f, 1f, 0.3f); // Green
+            if (talent.Name.Contains("Heal")) return new Color(1f, 1f, 0.3f); // Yellow
+            
+            return Color.white;
+        }
+
+        /// <summary>
+        /// Setup text elements with proper sizing
+        /// </summary>
+        private void SetupTexts(TalentModel talent)
+        {
+            // Set name with appropriate font size
+            if (nameText != null)
+            {
+                nameText.text = GetDisplayName(talent);
+                nameText.color = Color.white;
+                
+                // Auto-adjust font size based on node size
+                if (layoutConfig != null)
+                {
+                    float baseFontSize = TalentModel.NodeType == TalentNodeType.Normal ? 16f : 18f;
+                    nameText.fontSize = baseFontSize * (layoutConfig.NormalNodeSize.x / 120f); // Scale based on node size
+                }
+            }
+
+            // Set bonus text
+            if (bonusText != null)
+            {
+                if (talent.NodeType == TalentNodeType.Normal)
+                {
+                    bonusText.text = $"+{talent.StatValue:F0}";
+                    bonusText.color = Color.green;
+                }
+                else
+                {
+                    bonusText.text = $"Lv.{talent.RequiredPlayerLevel}";
+                    bonusText.color = Color.yellow;
+                }
+                
+                // Auto-adjust font size
+                if (layoutConfig != null)
+                {
+                    float baseFontSize = 14f;
+                    bonusText.fontSize = baseFontSize * (layoutConfig.NormalNodeSize.x / 120f);
+                }
+            }
+
+            // Set cost text
+            if (costText != null)
+            {
+                costText.text = talent.Cost.ToString();
+                costText.color = Color.white;
+                
+                // Auto-adjust font size
+                if (layoutConfig != null)
+                {
+                    float baseFontSize = 12f;
+                    costText.fontSize = baseFontSize * (layoutConfig.NormalNodeSize.x / 120f);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Get display name for node
+        /// </summary>
+        private string GetDisplayName(TalentModel talent)
+        {
+            if (talent.NodeType == TalentNodeType.Normal)
+            {
+                // Shorten normal stat names for better display
+                if (talent.Name.Contains("Attack")) return "ATK";
+                if (talent.Name.Contains("Defense")) return "DEF";
+                if (talent.Name.Contains("Speed")) return "SPD";
+                if (talent.Name.Contains("Heal")) return "HEAL";
+            }
+            
+            // For special nodes, truncate long names
+            return talent.Name.Length > 8 ? talent.Name.Substring(0, 8) + "..." : talent.Name;
+        }
+
+        /// <summary>
+        /// Setup currency icon
+        /// </summary>
+        private void SetupCurrencyIcon(TalentModel talent)
+        {
+            if (currencyIcon == null) return;
+
+            string currencyIconPath = talent.NodeType == TalentNodeType.Normal ? 
+                "Icons/UI/gold_icon" : "Icons/UI/orc_icon";
+                
+            var sprite = Resources.Load<Sprite>(currencyIconPath);
+            if (sprite != null)
+            {
+                currencyIcon.sprite = sprite;
+                currencyIcon.gameObject.SetActive(true);
+            }
+            else
+            {
+                // Create simple colored icon for currency
+                var texture = new Texture2D(1, 1);
+                Color currencyColor = talent.NodeType == TalentNodeType.Normal ? 
+                    new Color(1f, 0.8f, 0f) : new Color(0.5f, 0.3f, 0.1f); // Gold vs Brown
+                texture.SetPixel(0, 0, currencyColor);
+                texture.Apply();
+                
+                var currencySprite = Sprite.Create(texture, new Rect(0, 0, 1, 1), Vector2.one * 0.5f);
+                currencyIcon.sprite = currencySprite;
+                currencyIcon.gameObject.SetActive(true);
+            }
+        }
+
+        /// <summary>
+        /// Update visual state based on current progress
         /// </summary>
         public void UpdateVisualState()
         {
@@ -185,83 +387,86 @@ namespace Talents.UI
 
             ProgressInfo = TalentManager.Instance.GetTalentProgressInfo(TalentModel.ID);
 
-            UpdateLevelDisplay();
-            UpdateCostDisplay();
             UpdateNodeAppearance();
-            UpdateInteraction();
-            UpdateProgress();
+            UpdateCostDisplay();
+            UpdateInteractionState();
+            UpdateStatusIcons();
         }
 
-        private void UpdateLevelDisplay()
+        /// <summary>
+        /// Update node appearance based on unlock status
+        /// </summary>
+        private void UpdateNodeAppearance()
         {
-            if (levelText == null) return;
+            Color backgroundColor = lockedColor;
+            Color borderColor = lockedColor;
+            float alpha = 1f;
 
-            if (TalentModel.NodeType == TalentNodeType.Normal)
+            switch (ProgressInfo.UnlockStatus)
             {
-                levelText.text = $"{ProgressInfo.CurrentLevel}/{ProgressInfo.MaxLevel}";
+                case TalentUnlockStatus.Locked:
+                    backgroundColor = lockedColor;
+                    borderColor = lockedColor;
+                    alpha = 0.6f;
+                    break;
+                    
+                case TalentUnlockStatus.Available:
+                    backgroundColor = availableColor;
+                    borderColor = availableColor;
+                    alpha = 1f;
+                    break;
+                    
+                case TalentUnlockStatus.Learned:
+                    backgroundColor = learnedColor;
+                    borderColor = learnedColor;
+                    alpha = 1f;
+                    break;
+                    
+                case TalentUnlockStatus.InsufficientPoints:
+                    backgroundColor = insufficientColor;
+                    borderColor = insufficientColor;
+                    alpha = 0.8f;
+                    break;
             }
-            else
-            {
-                levelText.text = ProgressInfo.CurrentLevel > 0 ? "LEARNED" : $"Lv.{TalentModel.RequiredPlayerLevel}";
-                levelText.color = ProgressInfo.CurrentLevel > 0 ? learnedColor : Color.gray;
-            }
+
+            // Apply colors
+            if (nodeBackground != null)
+                nodeBackground.color = backgroundColor;
+
+            if (nodeBorder != null)
+                nodeBorder.color = borderColor;
+
+            // Apply overall alpha
+            if (nodeCanvasGroup != null)
+                nodeCanvasGroup.alpha = alpha;
         }
 
+        /// <summary>
+        /// Update cost display
+        /// </summary>
         private void UpdateCostDisplay()
         {
             if (costText == null) return;
 
-            if (ProgressInfo.UnlockStatus == TalentUnlockStatus.MaxLevel)
+            if (ProgressInfo.UnlockStatus == TalentUnlockStatus.Learned)
             {
-                costText.text = "MAX";
-                costText.color = maxLevelColor;
+                costText.text = "✓";
+                costText.color = learnedColor;
             }
-            else if (ProgressInfo.NextLevelCost > 0)
+            else
             {
-                costText.text = ProgressInfo.NextLevelCost.ToString();
+                costText.text = TalentModel.Cost.ToString();
+                
+                // Color based on affordability
                 bool canAfford = ProgressInfo.UnlockStatus == TalentUnlockStatus.Available;
                 costText.color = canAfford ? Color.white : insufficientColor;
             }
         }
 
-        private void UpdateNodeAppearance()
-        {
-            Color borderColor = lockedColor;
-            bool showLock = false;
-            bool showMaxLevel = false;
-
-            switch (ProgressInfo.UnlockStatus)
-            {
-                case TalentUnlockStatus.Locked:
-                    borderColor = lockedColor;
-                    showLock = true;
-                    break;
-                case TalentUnlockStatus.Available:
-                    borderColor = availableColor;
-                    break;
-                case TalentUnlockStatus.Learned:
-                    borderColor = learnedColor;
-                    break;
-                case TalentUnlockStatus.InsufficientPoints:
-                    borderColor = insufficientColor;
-                    break;
-                case TalentUnlockStatus.MaxLevel:
-                    borderColor = maxLevelColor;
-                    showMaxLevel = true;
-                    break;
-            }
-
-            if (nodeBorder != null)
-                nodeBorder.color = borderColor;
-            
-            if (lockIcon != null)
-                lockIcon.SetActive(showLock);
-            
-            if (maxLevelIcon != null)
-                maxLevelIcon.SetActive(showMaxLevel);
-        }
-
-        private void UpdateInteraction()
+        /// <summary>
+        /// Update interaction state
+        /// </summary>
+        private void UpdateInteractionState()
         {
             bool canInteract = ProgressInfo.UnlockStatus == TalentUnlockStatus.Available;
             
@@ -269,21 +474,24 @@ namespace Talents.UI
                 nodeButton.interactable = canInteract;
         }
 
-        private void UpdateProgress()
+        /// <summary>
+        /// Update status icons
+        /// </summary>
+        private void UpdateStatusIcons()
         {
-            if (TalentModel.NodeType == TalentNodeType.Normal && progressSlider != null)
-            {
-                progressSlider.value = ProgressInfo.CurrentLevel;
-                
-                var fillImage = progressSlider.fillRect?.GetComponent<Image>();
-                if (fillImage != null)
-                {
-                    float progress = (float)ProgressInfo.CurrentLevel / ProgressInfo.MaxLevel;
-                    fillImage.color = Color.Lerp(Color.red, Color.green, progress);
-                }
-            }
+            bool showLock = ProgressInfo.UnlockStatus == TalentUnlockStatus.Locked;
+            bool showLearned = ProgressInfo.UnlockStatus == TalentUnlockStatus.Learned;
+
+            if (lockIcon != null)
+                lockIcon.SetActive(showLock);
+
+            if (learnedIcon != null)
+                learnedIcon.SetActive(showLearned);
         }
 
+        /// <summary>
+        /// Handle button click
+        /// </summary>
         private void OnButtonClicked()
         {
             if (!IsInitialized) return;
@@ -292,6 +500,9 @@ namespace Talents.UI
             OnNodeClicked?.Invoke(this);
         }
 
+        /// <summary>
+        /// Animate touch feedback
+        /// </summary>
         private void AnimateTouchFeedback()
         {
             if (isAnimating) return;
@@ -313,15 +524,17 @@ namespace Talents.UI
             isAnimating = true;
             var sequence = DOTween.Sequence();
             
-            // Scale animation
-            sequence.Append(transform.DOScale(originalScale * 1.2f, 0.2f).SetEase(Ease.OutBack));
-            sequence.Append(transform.DOScale(originalScale, 0.2f).SetEase(Ease.InBack));
+            // Scale pulse animation
+            sequence.Append(transform.DOScale(originalScale * 1.3f, 0.2f).SetEase(Ease.OutBack));
+            sequence.Append(transform.DOScale(originalScale, 0.3f).SetEase(Ease.InOutQuad));
             
-            // Border flash
+            // Border flash animation
             if (nodeBorder != null)
             {
                 var originalColor = nodeBorder.color;
-                sequence.Insert(0, nodeBorder.DOColor(Color.white, 0.1f).SetLoops(3, LoopType.Yoyo));
+                sequence.Insert(0, nodeBorder.DOColor(Color.white, 0.1f)
+                    .SetLoops(4, LoopType.Yoyo)
+                    .OnComplete(() => nodeBorder.color = originalColor));
             }
 
             sequence.OnComplete(() => {
@@ -338,58 +551,103 @@ namespace Talents.UI
             if (nodeBorder != null)
             {
                 if (highlighted)
+                {
                     nodeBorder.color = Color.yellow;
+                    nodeBorder.DOColor(Color.white, 0.5f).SetLoops(-1, LoopType.Yoyo);
+                }
                 else
+                {
+                    DOTween.Kill(nodeBorder);
                     UpdateNodeAppearance();
+                }
             }
         }
 
         /// <summary>
-        /// Get tooltip for mobile
+        /// Get tooltip text for this node
         /// </summary>
         public string GetTooltip()
         {
             if (!IsInitialized) return "";
 
             string tooltip = $"<b>{TalentModel.Name}</b>\n";
+            tooltip += $"{TalentModel.Description}\n\n";
             
             if (TalentModel.NodeType == TalentNodeType.Normal)
             {
-                tooltip += $"Level: {ProgressInfo.CurrentLevel}/{ProgressInfo.MaxLevel}\n";
-                tooltip += $"Bonus: +{TalentModel.StatValue * (ProgressInfo.CurrentLevel + 1)}\n";
+                tooltip += $"Stat Bonus: +{TalentModel.StatValue:F1} {TalentModel.StatType}\n";
+                tooltip += $"Cost: {TalentModel.Cost} Gold\n";
             }
             else
             {
-                tooltip += $"{TalentModel.Description}\n";
-                tooltip += $"Requires Level: {TalentModel.RequiredPlayerLevel}\n";
+                tooltip += $"Special Ability\n";
+                tooltip += $"Required Level: {TalentModel.RequiredPlayerLevel}\n";
+                tooltip += $"Cost: {TalentModel.Cost} Orc\n";
             }
 
-            if (ProgressInfo.NextLevelCost > 0)
+            // Add status info
+            switch (ProgressInfo.UnlockStatus)
             {
-                string currency = TalentModel.NodeType == TalentNodeType.Normal ? "Gold" : "Orc";
-                tooltip += $"Cost: {ProgressInfo.NextLevelCost} {currency}";
+                case TalentUnlockStatus.Learned:
+                    tooltip += "<color=green>✓ LEARNED</color>";
+                    break;
+                case TalentUnlockStatus.Available:
+                    tooltip += "<color=yellow>◉ AVAILABLE</color>";
+                    break;
+                case TalentUnlockStatus.InsufficientPoints:
+                    tooltip += "<color=red>✗ INSUFFICIENT CURRENCY</color>";
+                    break;
+                case TalentUnlockStatus.Locked:
+                    tooltip += "<color=red>🔒 LOCKED</color>";
+                    break;
             }
 
             return tooltip;
         }
 
         /// <summary>
-        /// Check if can interact
+        /// Public helper methods
         /// </summary>
         public bool CanInteract()
         {
             return IsInitialized && ProgressInfo.UnlockStatus == TalentUnlockStatus.Available;
         }
 
-        /// <summary>
-        /// Force refresh
-        /// </summary>
         public void ForceRefresh()
         {
             if (IsInitialized)
                 UpdateVisualState();
         }
 
+        public int GetZoneLevel()
+        {
+            return TalentModel?.RequiredPlayerLevel ?? 1;
+        }
+
+        public bool IsNormalNode()
+        {
+            return TalentModel?.NodeType == TalentNodeType.Normal;
+        }
+
+        public bool IsSpecialNode()
+        {
+            return TalentModel?.NodeType == TalentNodeType.Special;
+        }
+
+        public string GetStatType()
+        {
+            if (!IsNormalNode()) return "";
+            
+            if (TalentModel.Name.Contains("Attack")) return "ATK";
+            if (TalentModel.Name.Contains("Defense")) return "DEF";
+            if (TalentModel.Name.Contains("Speed")) return "SPD";
+            if (TalentModel.Name.Contains("Heal")) return "HEAL";
+            return "";
+        }
+
+        /// <summary>
+        /// Cleanup
+        /// </summary>
         private void OnDestroy()
         {
             DOTween.Kill(gameObject);

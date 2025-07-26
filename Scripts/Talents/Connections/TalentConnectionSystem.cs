@@ -4,6 +4,7 @@ using UnityEngine.UI;
 using Talents.Data;
 using Talents.Manager;
 using Talents.UI;
+using Unity.VisualScripting;
 
 namespace Talents.Connections
 {
@@ -132,9 +133,9 @@ namespace Talents.Connections
             
             foreach (var talent in allTalents)
             {
-                if (talent.HasPrerequisite && nodeMap.ContainsKey(talent.ID) && nodeMap.ContainsKey(talent.RequiredTalentId))
+                if (talent.HasDescriptor() && nodeMap.ContainsKey(talent.ID) && nodeMap.ContainsKey(talent.RequiredPlayerLevel))
                 {
-                    CreateConnection(talent.RequiredTalentId, talent.ID);
+                    CreateConnection(talent.RequiredPlayerLevel, talent.ID);
                 }
             }
 
@@ -293,10 +294,10 @@ namespace Talents.Connections
                 path.Insert(0, currentTalentId);
                 
                 var talent = TalentDatabase.Instance.GetTalentById(currentTalentId);
-                if (talent == null || !talent.HasPrerequisite)
+                if (talent == null || !talent.HasDescriptor())
                     break;
                 
-                currentTalentId = talent.RequiredTalentId;
+                currentTalentId = talent.RequiredPlayerLevel;
             }
 
             return path;
