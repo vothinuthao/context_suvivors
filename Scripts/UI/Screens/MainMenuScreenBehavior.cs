@@ -36,19 +36,19 @@ namespace OctoberStudio.UI
         private void Start()
         {
             CloseAllWindows();
-            InitializeWindows();
+            // InitializeWindows();
             bottomNavigation.OnTabSelected += OnTabSelected;
             OnTabSelected(BottomNavigationBehavior.NavigationTab.Battle);
         }
 
         private void InitializeWindows()
         {
-            lobbyWindow.Init(ShowUpgrades, ShowSettings, ShowCharacters, ShowEquipments,ShowTalents);
-            upgradesWindow.Init(ReturnToLobby);
-            settingsWindow.Init(ReturnToLobby);
-            charactersWindow.Init(ReturnToLobby);
-            equipmentWindow.Init(ReturnToLobby);
-            talentWindow.Init(ReturnToLobby);
+            // lobbyWindow.Init(ShowUpgrades, ShowSettings, ShowCharacters, ShowEquipments,ShowTalents);
+            // upgradesWindow.Init(ReturnToLobby);
+            // settingsWindow.Init(ReturnToLobby);
+            // charactersWindow.Init(ReturnToLobby);
+            // equipmentWindow.Init(ReturnToLobby);
+            // talentWindow.Init(ReturnToLobby);
         }
 
         private void OnTabSelected(BottomNavigationBehavior.NavigationTab tab)
@@ -66,6 +66,7 @@ namespace OctoberStudio.UI
                     break;
 
                 case BottomNavigationBehavior.NavigationTab.Battle:
+                    CloseCurrentWindow();
                     ShowLobby();
                     break;
 
@@ -101,8 +102,6 @@ namespace OctoberStudio.UI
         {
             CloseCurrentWindow();
         }
-
-        // ===== TAB WINDOW METHODS =====
         
         private void ShowLobby()
         {
@@ -111,14 +110,9 @@ namespace OctoberStudio.UI
 
         private void ShowShop()
         {
-            // Placeholder for shop window
             if (shopWindow != null)
             {
                 shopWindow.SetActive(true);
-            }
-            else
-            {
-                Debug.Log("Shop window not implemented yet");
             }
         }
         private void ShowTalents()
@@ -168,15 +162,11 @@ namespace OctoberStudio.UI
 
         private void ReturnToLobby()
         {
-            // Explicitly close equipment window first
-            if (equipmentWindow != null && equipmentWindow.gameObject.activeInHierarchy)
-            {
-                equipmentWindow.Close();
-            }
-            
             CloseCurrentWindow();
-            
+            currentActiveTab = BottomNavigationBehavior.NavigationTab.Battle;
             bottomNavigation.SelectTab(BottomNavigationBehavior.NavigationTab.Battle);
+            
+            // Open lobby window
             ShowLobby();
         }
         

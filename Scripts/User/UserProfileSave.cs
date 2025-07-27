@@ -84,7 +84,6 @@ namespace OctoberStudio.User
 
         public virtual long GetXpRequiredForLevel(int level)
         {
-            // Fallback XP calculation: adjust as needed for your game
             const int baseXP = 100;
             const int perLevelXP = 50;
             if (level <= 1) return 0;
