@@ -99,7 +99,6 @@ namespace OctoberStudio.UI
 
         private void CloseAllWindows()
         {
-            equipmentWindow.Close();
             CloseCurrentWindow();
         }
 
@@ -169,34 +168,18 @@ namespace OctoberStudio.UI
 
         private void ReturnToLobby()
         {
+            // Explicitly close equipment window first
+            if (equipmentWindow != null && equipmentWindow.gameObject.activeInHierarchy)
+            {
+                equipmentWindow.Close();
+            }
+            
             CloseCurrentWindow();
             
             bottomNavigation.SelectTab(BottomNavigationBehavior.NavigationTab.Battle);
             ShowLobby();
         }
-
-        private void HideSettings()
-        {
-            settingsWindow.Close();
-            ShowLobby();
-        }
-
-        private void HideCharacters()
-        {
-            charactersWindow.Close();
-            ShowLobby();
-        }
-
-
-        public void SetTabEnabled(BottomNavigationBehavior.NavigationTab tab, bool enabled)
-        {
-            bottomNavigation.SetTabEnabled(tab, enabled);
-        }
-
-        public BottomNavigationBehavior.NavigationTab GetCurrentTab()
-        {
-            return currentActiveTab;
-        }
+        
         
         private void OnDestroy()
         {

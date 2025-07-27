@@ -80,12 +80,12 @@ namespace OctoberStudio.UI
         }
 
         public void Init(UnityAction onUpgradesButtonClicked, UnityAction onSettingsButtonClicked, UnityAction onCharactersButtonClicked,
-            UnityAction onEquidmentButtonClicked,UnityAction onTalentsClicked)
+            UnityAction onEquipmentButtonClicked, UnityAction onTalentsClicked)
         {
             upgradesButton.onClick.AddListener(onUpgradesButtonClicked);
             settingsButton.onClick.AddListener(onSettingsButtonClicked);
             charactersButton.onClick.AddListener(onCharactersButtonClicked);
-            equipmentsButton.onClick.AddListener(onEquidmentButtonClicked);
+            equipmentsButton.onClick.AddListener(onEquipmentButtonClicked);
             talentsButton.onClick.AddListener(onTalentsClicked);
         }
 

@@ -2,6 +2,7 @@
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
+using User.Manager;
 
 namespace User.UI
 {
@@ -12,30 +13,11 @@ namespace User.UI
         [SerializeField] protected TextMeshProUGUI totalXPText;
         [SerializeField] protected Slider levelProgressSlider;
         [SerializeField] protected TextMeshProUGUI xpToNextLevelText;
-
-        [Header("Stats Display")]
-        [SerializeField] protected TextMeshProUGUI totalGamesText;
-        [SerializeField] protected TextMeshProUGUI bestTimeText;
-        [SerializeField] protected TextMeshProUGUI stagesCompletedText;
-
-        [Header("Animations")]
-        [SerializeField] protected Animation levelUpAnimation;
+        
 
         protected UserProfileSave profileSave;
         private bool isInitialized = false;
 
-
-        // protected virtual void Start()
-        // {
-        //     if (UserProfileManager.Instance?.ProfileSave != null)
-        //     {
-        //         profileSave = UserProfileManager.Instance.ProfileSave;
-        //         
-        //         profileSave.onUserLevelChanged += OnUserLevelChanged;
-        //         profileSave.onTotalXPChanged += OnTotalXPChanged;
-        //         UpdateUI();
-        //     }
-        // }
         public virtual void InitializeUI()
         {
             if (isInitialized)
@@ -95,7 +77,7 @@ namespace User.UI
 
             // User level
             if (userLevelText != null)
-                userLevelText.text = $"Level {profileSave.UserLevel}";
+                userLevelText.text = $"{profileSave.UserLevel}";
 
             // Total XP
             if (totalXPText != null)
@@ -103,7 +85,7 @@ namespace User.UI
 
             // Level progress
             if (levelProgressSlider != null)
-                levelProgressSlider.value = profileSave.GetLevelProgress();
+                levelProgressSlider.value = UserProfileManager.Instance.ProfileSave.GetLevelProgress();
 
             // XP to next level
             if (xpToNextLevelText != null)
@@ -114,27 +96,11 @@ namespace User.UI
                 else
                     xpToNextLevelText.text = "MAX LEVEL";
             }
-
-            // Stats
-            if (totalGamesText != null)
-                totalGamesText.text = $"Games Played: {profileSave.TotalGamesPlayed}";
-
-            if (bestTimeText != null)
-            {
-                int minutes = Mathf.FloorToInt(profileSave.BestSurvivalTime);
-                int seconds = Mathf.FloorToInt((profileSave.BestSurvivalTime % 1) * 60);
-                bestTimeText.text = $"Best Time: {minutes}:{seconds:00}";
-            }
-
-            if (stagesCompletedText != null)
-                stagesCompletedText.text = $"Stages: {profileSave.TotalStagesCompleted}";
         }
 
         protected virtual void OnUserLevelChanged(int newLevel)
         {
             UpdateUI();
-            if (levelUpAnimation != null)
-                levelUpAnimation.Play();
         }
 
         protected virtual void OnTotalXPChanged(long newXP)
@@ -143,8 +109,6 @@ namespace User.UI
         }
         protected virtual void OnManagerLevelUp(int newLevel)
         {
-            if (levelUpAnimation != null)
-                levelUpAnimation.Play();
         }
         public void RefreshUI()
         {

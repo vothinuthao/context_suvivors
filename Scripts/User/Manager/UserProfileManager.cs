@@ -253,15 +253,6 @@ namespace OctoberStudio.User
                 UnlockFeature(levelRewards.RewardsFeatureName);
             }
         }
-
-        public float GetLevelProgress()
-        {
-            if (useCSVConfig && UserLevelDatabase.Instance.IsDataLoaded)
-            {
-                return UserLevelDatabase.Instance.GetLevelProgress(profileSave.UserLevel, profileSave.TotalXP);
-            }
-            return profileSave.GetLevelProgress();
-        }
         protected virtual void UnlockReward(UnlockReward reward)
         {
             switch (reward.rewardType)
@@ -352,7 +343,7 @@ namespace OctoberStudio.User
             }
             
             // Fallback to original calculation
-            return profileSave.GetXPRequiredForLevel(level);
+            return profileSave.GetXpRequiredForLevel(level);
         }
 
         public long GetXPRequiredToLevelUp(int currentLevel)

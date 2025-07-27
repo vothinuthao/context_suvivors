@@ -29,25 +29,6 @@ namespace OctoberStudio.User
             if (totalXP < 0) totalXP = 0;
         }
 
-        public virtual void AddStageCompletionXP(float survivalTimeMinutes, int stageNumber, bool isVictory)
-        {
-            long baseXP = CalculateStageXP(survivalTimeMinutes, stageNumber, isVictory);
-            
-            totalXP += baseXP;
-            totalGamesPlayed++;
-            totalStagesCompleted++;
-            
-            if (survivalTimeMinutes > bestSurvivalTime)
-            {
-                bestSurvivalTime = survivalTimeMinutes;
-            }
-
-            onTotalXPChanged?.Invoke(totalXP);
-            CheckLevelUp();
-
-            Debug.Log($"Stage completed! Gained {baseXP} XP (Survival: {survivalTimeMinutes:F1}min, Stage: {stageNumber})");
-        }
-
         protected virtual long CalculateStageXP(float survivalTimeMinutes, int stageNumber, bool isVictory)
         {
             // Base XP từ survival time (1 XP per 10 seconds)
@@ -101,30 +82,29 @@ namespace OctoberStudio.User
             Debug.Log($"User Level Up! New Level: {userLevel}");
         }
 
-        public virtual long GetXPRequiredForLevel(int level)
+        public virtual long GetXpRequiredForLevel(int level)
         {
-            if (UserProfileManager.Instance != null)
-            {
-                return UserProfileManager.Instance.GetXPRequiredForLevel(level);
-            }
-            return GetXPRequiredForLevel(level);
+            // Fallback XP calculation: adjust as needed for your game
+            const int baseXP = 100;
+            const int perLevelXP = 50;
+            if (level <= 1) return 0;
+            return baseXP + perLevelXP * (level - 1);
+        }
+        
+        
+        public virtual float GetLevelProgress()
+        {
+            if (userLevel >= GetMaxLevel()) return 1f;
+            long requiredXp = GetXpRequiredForLevel(userLevel + 1);
+            if (requiredXp <= 0) return 1f;
+            return (float)(totalXP - GetXpRequiredForLevel(userLevel)) / (requiredXp - GetXpRequiredForLevel(userLevel));
         }
 
         public virtual long GetXPRequiredForNextLevel()
         {
             if (userLevel >= GetMaxLevel()) return 0;
-            return GetXPRequiredForLevel(userLevel + 1) - totalXP;
+            return GetXpRequiredForLevel(userLevel + 1) - totalXP;
         }
-
-        public virtual float GetLevelProgress()
-        {
-            if (UserProfileManager.Instance != null)
-            {
-                return UserProfileManager.Instance.GetLevelProgress();
-            }
-            return GetLevelProgress();
-        }
-
         protected virtual int GetMaxLevel()
         {
             if (UserLevelDatabase.Instance.IsDataLoaded)
@@ -140,7 +120,7 @@ namespace OctoberStudio.User
         {
             level = Mathf.Clamp(level, 1, GetMaxLevel());
             userLevel = level;
-            totalXP = GetXPRequiredForLevel(level);
+            totalXP = GetXpRequiredForLevel(level);
             
             onUserLevelChanged?.Invoke(userLevel);
             onTotalXPChanged?.Invoke(totalXP);

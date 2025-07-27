@@ -163,10 +163,7 @@ namespace User.Manager
 
             return level;
         }
-
-        /// <summary>
-        /// Get progress to next level (0.0 to 1.0)
-        /// </summary>
+        
         public float GetLevelProgress(int currentLevel, long currentXP)
         {
             if (currentLevel >= MaxLevel) return 1f;

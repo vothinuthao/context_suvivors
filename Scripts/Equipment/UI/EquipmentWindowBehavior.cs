@@ -69,16 +69,14 @@ namespace Common.Scripts.Equipment.UI
 
         private void SetupEquipmentSlots()
         {
-            // Setup left slots (Hat, Armor, Ring)
-            for (int i = 0; i < leftEquipmentSlots.Length; i++)
+            foreach (var t in leftEquipmentSlots)
             {
-                leftEquipmentSlots[i].OnSlotClicked.AddListener(OnEquipmentSlotClicked);
+                t.OnSlotClicked.AddListener(OnEquipmentSlotClicked);
             }
 
-            // Setup right slots (Necklace, Belt, Shoes)
-            for (int i = 0; i < rightEquipmentSlots.Length; i++)
+            foreach (var t in rightEquipmentSlots)
             {
-                rightEquipmentSlots[i].OnSlotClicked.AddListener(OnEquipmentSlotClicked);
+                t.OnSlotClicked.AddListener(OnEquipmentSlotClicked);
             }
         }
 
@@ -96,10 +94,9 @@ namespace Common.Scripts.Equipment.UI
 
         private void RefreshInventory()
         {
-            // Clear existing items
             inventoryContent.DestroyAllChildren();
             inventoryItemVOs.Clear();
-
+            // Clear item details panel
             if (!EquipmentManager.Instance)
                 return;
         
@@ -120,7 +117,7 @@ namespace Common.Scripts.Equipment.UI
                     inventoryItemVOs.Add(itemVO);
                 }
             }
-
+            itemDetailsPanel.SetActive(false);
             UpdateInventoryInfo();
         }
 
