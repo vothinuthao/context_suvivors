@@ -10,9 +10,6 @@ using Talents.Config;
 
 namespace Talents.UI
 {
-    /// <summary>
-    /// Updated talent node with proper icon loading and layout configuration support
-    /// </summary>
     public class TalentNodeBehavior : MonoBehaviour
     {
         [Header("UI References")]
@@ -28,7 +25,6 @@ namespace Talents.UI
         [SerializeField] private GameObject lockIcon;
         [SerializeField] private GameObject learnedIcon;
         [SerializeField] private Image currencyIcon;
-        [SerializeField] private CanvasGroup nodeCanvasGroup;
 
         [Header("Visual States")]
         [SerializeField] private Color lockedColor = new Color(0.4f, 0.4f, 0.4f, 0.8f);
@@ -49,6 +45,7 @@ namespace Talents.UI
         public UnityEvent<TalentNodeBehavior> OnNodeClicked = new UnityEvent<TalentNodeBehavior>();
 
         // Cache
+        [SerializeField]
         private RectTransform rectTransform;
         private Vector3 originalScale;
         private bool isAnimating = false;
@@ -59,11 +56,6 @@ namespace Talents.UI
             rectTransform = GetComponent<RectTransform>();
             originalScale = transform.localScale;
             
-            // Get canvas group or create one
-            if (nodeCanvasGroup == null)
-                nodeCanvasGroup = GetComponent<CanvasGroup>();
-            if (nodeCanvasGroup == null)
-                nodeCanvasGroup = gameObject.AddComponent<CanvasGroup>();
             
             SetupButton();
         }
@@ -435,10 +427,6 @@ namespace Talents.UI
 
             if (nodeBorder != null)
                 nodeBorder.color = borderColor;
-
-            // Apply overall alpha
-            if (nodeCanvasGroup != null)
-                nodeCanvasGroup.alpha = alpha;
         }
 
         /// <summary>

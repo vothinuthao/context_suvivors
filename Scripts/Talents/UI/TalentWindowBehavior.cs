@@ -14,7 +14,8 @@ using Talents.Config;
 namespace Talents.UI
 {
     /// <summary>
-    /// Fixed talent window with proper positioning and zone grouping
+    /// Talent window with proper zone hierarchy and bottom-up spawning
+    /// Structure: Zone contains ZoneLabel + all nodes of that level (Normal + Special)
     /// </summary>
     public class TalentWindowBehavior : MonoBehaviour
     {
@@ -55,13 +56,12 @@ namespace Talents.UI
         private List<TalentNodeBehavior> activeNodes = new List<TalentNodeBehavior>();
         private List<GameObject> connectionLines = new List<GameObject>();
         
-        // Zone management
+        // Zone management - proper hierarchy
         private Dictionary<int, Transform> zoneContainers = new Dictionary<int, Transform>();
-        private List<GameObject> activeZoneLabels = new List<GameObject>();
+        private Dictionary<int, GameObject> zoneLabels = new Dictionary<int, GameObject>();
 
         // Layout
         private TalentLayoutConfig layoutConfig;
-        private float actualContentHeight = 0f;
 
         // State
         private bool isInitialized = false;
@@ -95,19 +95,19 @@ namespace Talents.UI
         }
 
         /// <summary>
-        /// Setup content area với proper bounds
+        /// Setup content area for bottom-up scrolling
         /// </summary>
         private void SetupContentArea()
         {
             if (talentTreeContent == null) return;
 
-            // Set content anchors cho bottom-up scrolling
-            talentTreeContent.anchorMin = new Vector2(0.5f, 0f);
-            talentTreeContent.anchorMax = new Vector2(0.5f, 0f);
-            talentTreeContent.pivot = new Vector2(0.5f, 0f);
+            // Set content anchors for bottom-up scrolling
+            talentTreeContent.anchorMin = new Vector2(0.5f, 0f);    // Bottom center
+            talentTreeContent.anchorMax = new Vector2(0.5f, 0f);    // Bottom center  
+            talentTreeContent.pivot = new Vector2(0.5f, 0f);        // Bottom pivot
             talentTreeContent.anchoredPosition = Vector2.zero;
 
-            // Setup scroll rect
+            // Setup scroll rect for vertical scrolling from bottom
             if (talentScrollRect != null)
             {
                 talentScrollRect.horizontal = false;
@@ -115,7 +115,7 @@ namespace Talents.UI
                 talentScrollRect.movementType = ScrollRect.MovementType.Elastic;
                 talentScrollRect.verticalNormalizedPosition = 0f; // Start at bottom
                 
-                // Ensure content size fitter is setup correctly
+                // Content size fitter
                 var contentSizeFitter = talentTreeContent.GetComponent<ContentSizeFitter>();
                 if (contentSizeFitter == null)
                 {
@@ -169,7 +169,7 @@ namespace Talents.UI
             
             if (isInitialized)
             {
-                BuildZoneBasedTalentTree();
+                BuildProperZoneHierarchy();
                 UpdateCurrencyUI();
                 StartCoroutine(ScrollToCurrentProgressionDelayed());
             }
@@ -185,107 +185,127 @@ namespace Talents.UI
         }
 
         /// <summary>
-        /// Build talent tree với uniform spacing và exact content height
+        /// Build talent tree with proper zone hierarchy
+        /// Structure: Zone_X -> ZoneLabel_X + Nodes of level X
         /// </summary>
-        private void BuildZoneBasedTalentTree()
+        private void BuildProperZoneHierarchy()
         {
             if (!TalentDatabase.Instance.IsDataLoaded || layoutConfig == null) return;
 
             ClearTalentTree();
 
-            // Get all talents sorted by position
-            var allTalents = TalentDatabase.Instance.GetAllTalents()
-                .OrderBy(t => t.PositionY)
-                .ToList();
+            // Get all zones (levels) sorted from 1 to max
+            var activeZones = TalentDatabase.Instance.GetActiveZones();
+            float currentY = layoutConfig.StartY;
 
-            // Create nodes with exact positioning - NO zone containers
-            foreach (var talent in allTalents)
+            // Build zones from level 1 to max (bottom to top)
+            foreach (int zoneLevel in activeZones.OrderBy(z => z))
             {
-                CreateTalentNodeDirect(talent);
-            }
-
-            // Create zone labels separately if needed
-            if (layoutConfig.ShowZoneLabels)
-            {
-                CreateZoneLabelsOnly();
+                currentY = CreateZoneWithProperHierarchy(zoneLevel, currentY);
             }
 
             CreateConnectionLines();
             UpdateAllNodeStates();
-            
-            // Set exact content height from database calculation
             SetExactContentSize();
         }
 
         /// <summary>
-        /// Create talent node directly without zone containers
+        /// Create zone with proper hierarchy: Zone -> ZoneLabel + Nodes
         /// </summary>
-        private void CreateTalentNodeDirect(TalentModel talent)
+        private float CreateZoneWithProperHierarchy(int zoneLevel, float startY)
         {
-            var nodeObj = Instantiate(talentNodePrefab, talentTreeContent);
-            var node = nodeObj.GetComponent<TalentNodeBehavior>();
+            // Step 1: Create zone container
+            Transform zoneContainer = CreateZoneContainer(zoneLevel, startY);
             
-            node.Initialize(talent);
-            node.OnNodeClicked.AddListener(OnTalentNodeClicked);
-
-            // Set exact position from talent model
-            var nodeRect = nodeObj.GetComponent<RectTransform>();
-            nodeRect.anchoredPosition = new Vector2(talent.PositionX, talent.PositionY);
-
-            // Set size based on type
-            Vector2 nodeSize = talent.NodeType == TalentNodeType.Normal ? 
-                layoutConfig.NormalNodeSize : layoutConfig.SpecialNodeSize;
-            nodeRect.sizeDelta = nodeSize;
-
-            talentNodes[talent.ID] = node;
-            activeNodes.Add(node);
-        }
-
-        /// <summary>
-        /// Create zone labels only for visual separation (no containers)
-        /// </summary>
-        private void CreateZoneLabelsOnly()
-        {
-            var activeZones = TalentDatabase.Instance.GetActiveZones();
+            // Step 2: Create zone label as child of zone container
+            CreateZoneLabelInContainer(zoneLevel, zoneContainer);
             
-            foreach (int zoneLevel in activeZones)
+            // Step 3: Get all talents for this zone
+            var normalTalents = TalentDatabase.Instance.GetNormalTalentsInZone(zoneLevel);
+            var specialTalent = TalentDatabase.Instance.GetSpecialTalentInZone(zoneLevel);
+            
+            // Step 4: Create normal nodes as children of zone container
+            float nodeYOffset = 60f; // Space for zone label
+            foreach (var talent in normalTalents.OrderBy(t => GetNodeOrder(t)))
             {
-                var zoneTalents = TalentDatabase.Instance.GetTalentsInZone(zoneLevel);
-                if (zoneTalents.Count == 0) continue;
-
-                // Calculate label position based on first talent in zone
-                var firstTalent = zoneTalents.OrderBy(t => t.PositionY).First();
-                float labelY = firstTalent.PositionY + layoutConfig.ZoneLabelOffsetY;
-
-                CreateZoneLabelAtPosition(zoneLevel, labelY);
+                CreateTalentNodeInZoneContainer(talent, zoneContainer, nodeYOffset);
+                nodeYOffset += layoutConfig.NodeSpacing;
             }
+            
+            // Step 5: Create special node as child of zone container (if exists)
+            if (specialTalent != null)
+            {
+                float specialYOffset = 60f + (layoutConfig.NodeSpacing * 1.5f); // Center in zone
+                CreateTalentNodeInZoneContainer(specialTalent, zoneContainer, specialYOffset);
+            }
+            
+            // Step 6: Calculate total zone height
+            int totalNodesInZone = normalTalents.Count + (specialTalent != null ? 1 : 0);
+            float zoneHeight = 60f + (normalTalents.Count * layoutConfig.NodeSpacing) + 40f; // Label + nodes + padding
+            
+            return startY + zoneHeight;
         }
 
         /// <summary>
-        /// Create zone label at specific position
+        /// Create zone container with proper anchoring
         /// </summary>
-        private void CreateZoneLabelAtPosition(int zoneLevel, float labelY)
+        private Transform CreateZoneContainer(int zoneLevel, float startY)
+        {
+            var zoneObj = new GameObject($"Zone_{zoneLevel}");
+            zoneObj.transform.SetParent(talentTreeContent, false);
+
+            // Setup RectTransform for zone container
+            var zoneRect = zoneObj.AddComponent<RectTransform>();
+            zoneRect.anchorMin = new Vector2(0.5f, 0f);  // Bottom center anchor
+            zoneRect.anchorMax = new Vector2(0.5f, 0f);  // Bottom center anchor
+            zoneRect.pivot = new Vector2(0.5f, 0f);      // Bottom pivot
+            zoneRect.anchoredPosition = new Vector2(0f, startY);
+            
+            // Calculate zone size (width: column span, height: will be set by content)
+            float zoneWidth = Mathf.Abs(layoutConfig.NormalColumnX) + Mathf.Abs(layoutConfig.SpecialColumnX) + 200f;
+            zoneRect.sizeDelta = new Vector2(zoneWidth, 100f); // Initial height, will adjust
+
+            // Debug visualization
+            if (showLayoutDebug)
+            {
+                var debugImage = zoneObj.AddComponent<Image>();
+                debugImage.color = new Color(debugZoneColor.r, debugZoneColor.g, debugZoneColor.b, 0.1f);
+                debugImage.raycastTarget = false;
+            }
+
+            zoneContainers[zoneLevel] = zoneObj.transform;
+            return zoneObj.transform;
+        }
+
+        /// <summary>
+        /// Create zone label inside zone container
+        /// </summary>
+        private void CreateZoneLabelInContainer(int zoneLevel, Transform zoneContainer)
         {
             GameObject labelObj;
             
             if (zoneLabelPrefab != null)
             {
-                labelObj = Instantiate(zoneLabelPrefab, talentTreeContent);
+                labelObj = Instantiate(zoneLabelPrefab, zoneContainer);
             }
             else
             {
                 labelObj = CreateDefaultZoneLabel(zoneLevel);
+                labelObj.transform.SetParent(zoneContainer, false);
             }
 
-            // Setup label positioning
+            // Setup zone label positioning within container
             var labelRect = labelObj.GetComponent<RectTransform>();
             if (labelRect != null)
             {
+                labelRect.anchorMin = new Vector2(0.5f, 0f);   // Bottom center of zone
+                labelRect.anchorMax = new Vector2(0.5f, 0f);   // Bottom center of zone
+                labelRect.pivot = new Vector2(0.5f, 0f);       // Bottom pivot
+                labelRect.anchoredPosition = new Vector2(0f, layoutConfig.ZoneLabelOffsetY);
                 labelRect.sizeDelta = layoutConfig.ZoneLabelSize;
-                labelRect.anchoredPosition = new Vector2(0f, labelY);
             }
 
-            // Update label text
+            // Setup label text
             var labelText = labelObj.GetComponentInChildren<TMP_Text>();
             if (labelText != null)
             {
@@ -295,23 +315,22 @@ namespace Talents.UI
                 labelText.alignment = TextAlignmentOptions.Center;
             }
 
-            activeZoneLabels.Add(labelObj);
+            zoneLabels[zoneLevel] = labelObj;
         }
 
         /// <summary>
-        /// Create default zone label without container
+        /// Create default zone label
         /// </summary>
         private GameObject CreateDefaultZoneLabel(int zoneLevel)
         {
             var labelObj = new GameObject($"ZoneLabel_{zoneLevel}");
-            labelObj.transform.SetParent(talentTreeContent, false);
 
-            // Add background image
+            // Add background
             var bgImage = labelObj.AddComponent<Image>();
-            bgImage.color = new Color(0f, 0f, 0f, 0.5f); // Semi-transparent
+            bgImage.color = new Color(0f, 0f, 0f, 0.6f);
             bgImage.raycastTarget = false;
 
-            // Add text
+            // Add text as child
             var textObj = new GameObject("LabelText");
             textObj.transform.SetParent(labelObj.transform, false);
             
@@ -321,7 +340,7 @@ namespace Talents.UI
             text.color = layoutConfig.ZoneLabelColor;
             text.alignment = TextAlignmentOptions.Center;
 
-            // Setup text rect to fill parent
+            // Setup text to fill parent
             var textRect = textObj.GetComponent<RectTransform>();
             textRect.anchorMin = Vector2.zero;
             textRect.anchorMax = Vector2.one;
@@ -332,30 +351,52 @@ namespace Talents.UI
         }
 
         /// <summary>
-        /// Set exact content size based on database calculation
+        /// Create talent node inside zone container as child
         /// </summary>
-        private void SetExactContentSize()
+        private void CreateTalentNodeInZoneContainer(TalentModel talent, Transform zoneContainer, float yOffset)
         {
-            if (talentTreeContent == null) return;
-
-            // Get exact height from database
-            float requiredHeight = TalentDatabase.Instance.CalculateRequiredContentHeight();
+            var nodeObj = Instantiate(talentNodePrefab, zoneContainer); // Parent = zone container
+            var node = nodeObj.GetComponent<TalentNodeBehavior>();
             
-            // Width based on column positions plus node sizes
-            float requiredWidth = Mathf.Abs(layoutConfig.NormalColumnX) + Mathf.Abs(layoutConfig.SpecialColumnX) + 
-                                 Mathf.Max(layoutConfig.NormalNodeSize.x, layoutConfig.SpecialNodeSize.x) + 100f;
+            node.Initialize(talent);
+            node.OnNodeClicked.AddListener(OnTalentNodeClicked);
 
-            // Set exact size
-            talentTreeContent.sizeDelta = new Vector2(requiredWidth, requiredHeight);
+            // Position node within zone container
+            var nodeRect = nodeObj.GetComponent<RectTransform>();
+            
+            // X position based on node type (relative to zone container)
+            float nodeX = talent.NodeType == TalentNodeType.Normal ? 
+                layoutConfig.NormalColumnX : layoutConfig.SpecialColumnX;
+            
+            // Y position within zone (relative to zone container bottom)
+            nodeRect.anchorMin = new Vector2(0.5f, 0f);     // Bottom center of zone
+            nodeRect.anchorMax = new Vector2(0.5f, 0f);     // Bottom center of zone
+            nodeRect.pivot = new Vector2(0.5f, 0.5f);       // Center pivot for node
+            nodeRect.anchoredPosition = new Vector2(nodeX, yOffset);
 
-            Debug.Log($"[TalentWindow] Content size set to: {requiredWidth} x {requiredHeight}");
+            // Set node size
+            Vector2 nodeSize = talent.NodeType == TalentNodeType.Normal ? 
+                layoutConfig.NormalNodeSize : layoutConfig.SpecialNodeSize;
+            nodeRect.sizeDelta = nodeSize;
 
-            // Force layout rebuild
-            LayoutRebuilder.ForceRebuildLayoutImmediate(talentTreeContent);
+            talentNodes[talent.ID] = node;
+            activeNodes.Add(node);
         }
 
         /// <summary>
-        /// Create connection lines between nodes
+        /// Get node order for consistent positioning
+        /// </summary>
+        private int GetNodeOrder(TalentModel talent)
+        {
+            if (talent.Name.Contains("ATK")) return 0;
+            if (talent.Name.Contains("DEF")) return 1;
+            if (talent.Name.Contains("SPEED")) return 2;
+            if (talent.Name.Contains("HEAL")) return 3;
+            return 4;
+        }
+
+        /// <summary>
+        /// Create connection lines between nodes in different zones
         /// </summary>
         private void CreateConnectionLines()
         {
@@ -366,11 +407,11 @@ namespace Talents.UI
         }
 
         /// <summary>
-        /// Create connections for normal column
+        /// Create connections for normal column (by stat type)
         /// </summary>
         private void CreateNormalColumnConnections()
         {
-            // Group normal nodes by stat type
+            // Group normal nodes by stat type across all zones
             var statGroups = new Dictionary<string, List<TalentNodeBehavior>>();
             
             foreach (var node in activeNodes.Where(n => n.IsNormalNode()))
@@ -382,7 +423,7 @@ namespace Talents.UI
                 statGroups[statType].Add(node);
             }
 
-            // Create vertical lines for each stat type
+            // Create vertical connections for each stat type
             foreach (var group in statGroups.Values)
             {
                 group.Sort((a, b) => a.GetZoneLevel().CompareTo(b.GetZoneLevel()));
@@ -410,7 +451,7 @@ namespace Talents.UI
         }
 
         /// <summary>
-        /// Create single connection line
+        /// Create single connection line between nodes
         /// </summary>
         private void CreateConnectionLine(TalentNodeBehavior fromNode, TalentNodeBehavior toNode)
         {
@@ -425,7 +466,6 @@ namespace Talents.UI
                 lineObj = CreateDefaultConnectionLine();
             }
 
-            // Setup line
             SetupConnectionLine(lineObj, fromNode.transform, toNode.transform);
             connectionLines.Add(lineObj);
         }
@@ -446,62 +486,67 @@ namespace Talents.UI
         }
 
         /// <summary>
-        /// Setup connection line geometry
+        /// Setup connection line between two world positions
         /// </summary>
         private void SetupConnectionLine(GameObject lineObj, Transform startTransform, Transform endTransform)
         {
-            var lineImage = lineObj.GetComponent<Image>();
             var lineRect = lineObj.GetComponent<RectTransform>();
-            
             if (lineRect == null) return;
 
-            // Get world positions và convert to local
-            Vector3 startPos = talentTreeContent.InverseTransformPoint(startTransform.position);
-            Vector3 endPos = talentTreeContent.InverseTransformPoint(endTransform.position);
+            // Convert world positions to content local positions
+            Vector3 startWorldPos = startTransform.position;
+            Vector3 endWorldPos = endTransform.position;
+            
+            Vector3 startPos = talentTreeContent.InverseTransformPoint(startWorldPos);
+            Vector3 endPos = talentTreeContent.InverseTransformPoint(endWorldPos);
 
             // Calculate line properties
             Vector3 direction = endPos - startPos;
             float distance = direction.magnitude;
             float angle = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg;
 
-            // Position và setup
+            // Setup line transform
             Vector3 midpoint = (startPos + endPos) * 0.5f;
             lineRect.anchoredPosition = midpoint;
             lineRect.sizeDelta = new Vector2(distance, layoutConfig.ConnectionLineWidth);
             lineRect.rotation = Quaternion.AngleAxis(angle, Vector3.forward);
 
-            // Anchors
+            // Proper anchoring
             lineRect.anchorMin = new Vector2(0.5f, 0.5f);
             lineRect.anchorMax = new Vector2(0.5f, 0.5f);
             lineRect.pivot = new Vector2(0.5f, 0.5f);
         }
 
         /// <summary>
-        /// Update content size properly
+        /// Set exact content size based on total zone height
         /// </summary>
-        private void UpdateContentSize()
+        private void SetExactContentSize()
         {
             if (talentTreeContent == null) return;
 
-            // Calculate optimal content size
-            Vector2 optimalSize = layoutConfig.GetOptimalContentSize();
-            optimalSize.y = Mathf.Max(optimalSize.y, actualContentHeight);
+            // Calculate exact content size from database
+            float requiredHeight = TalentDatabase.Instance.CalculateRequiredContentHeight();
+            float requiredWidth = Mathf.Abs(layoutConfig.NormalColumnX) + Mathf.Abs(layoutConfig.SpecialColumnX) + 
+                                 Mathf.Max(layoutConfig.NormalNodeSize.x, layoutConfig.SpecialNodeSize.x) + 200f;
 
-            talentTreeContent.sizeDelta = optimalSize;
+            talentTreeContent.sizeDelta = new Vector2(requiredWidth, requiredHeight);
 
+            Debug.Log($"[TalentWindow] Content size set to: {requiredWidth} x {requiredHeight}");
+            
             // Force layout rebuild
             LayoutRebuilder.ForceRebuildLayoutImmediate(talentTreeContent);
         }
 
         /// <summary>
-        /// Scroll to current progression với delay
+        /// Scroll to current progression with delay
         /// </summary>
         private IEnumerator ScrollToCurrentProgressionDelayed()
         {
             yield return new WaitForEndOfFrame();
-            yield return new WaitForEndOfFrame(); // Extra frame cho layout
+            yield return new WaitForEndOfFrame(); // Extra frame for layout
 
-            // if (talentScrollRect == null) return;
+            if (talentScrollRect == null) // return if not initialized
+                yield break;
 
             var currentNode = TalentManager.Instance?.GetCurrentProgressionNode();
             if (currentNode != null && talentNodes.TryGetValue(currentNode.ID, out var node))
@@ -510,7 +555,6 @@ namespace Talents.UI
             }
             else
             {
-                // Scroll to bottom (starting nodes)
                 talentScrollRect.verticalNormalizedPosition = 0f;
             }
         }
@@ -522,19 +566,20 @@ namespace Talents.UI
         {
             if (talentScrollRect == null || targetNode == null) return;
 
+            // Get node's world position and convert to scroll position
             var nodeWorldPos = targetNode.transform.position;
             var nodeLocalPos = talentTreeContent.InverseTransformPoint(nodeWorldPos);
             
             var contentHeight = talentTreeContent.sizeDelta.y;
             var viewportHeight = talentScrollRect.viewport.rect.height;
 
-            // Calculate normalized position
+            // Calculate normalized position (0 = bottom, 1 = top)
             float normalizedPos = Mathf.Clamp01((nodeLocalPos.y + viewportHeight * 0.5f) / contentHeight);
             talentScrollRect.verticalNormalizedPosition = normalizedPos;
         }
 
         /// <summary>
-        /// Clear talent tree
+        /// Clear talent tree completely
         /// </summary>
         private void ClearTalentTree()
         {
@@ -547,21 +592,14 @@ namespace Talents.UI
             activeNodes.Clear();
             talentNodes.Clear();
 
-            // Clear zone containers
+            // Clear zone containers (will destroy labels and nodes too)
             foreach (var container in zoneContainers.Values)
             {
                 if (container != null)
                     Destroy(container.gameObject);
             }
             zoneContainers.Clear();
-
-            // Clear zone labels
-            foreach (var label in activeZoneLabels)
-            {
-                if (label != null)
-                    Destroy(label);
-            }
-            activeZoneLabels.Clear();
+            zoneLabels.Clear();
 
             // Clear connection lines
             foreach (var line in connectionLines)
@@ -595,7 +633,7 @@ namespace Talents.UI
                 var lineImage = line.GetComponent<Image>();
                 if (lineImage != null)
                 {
-                    // Simple implementation - all inactive for now
+                    // Basic implementation - can be enhanced with progression logic
                     lineImage.color = layoutConfig.InactiveConnectionColor;
                 }
             }
@@ -619,7 +657,7 @@ namespace Talents.UI
         }
 
         /// <summary>
-        /// Show learn confirmation
+        /// Show learn confirmation dialog
         /// </summary>
         private void ShowLearnConfirmation(TalentNodeBehavior node)
         {
@@ -684,7 +722,7 @@ namespace Talents.UI
         }
 
         /// <summary>
-        /// Handle talent learned
+        /// Handle talent learned event
         /// </summary>
         private void OnTalentLearned(TalentModel talent)
         {
@@ -739,7 +777,7 @@ namespace Talents.UI
         public void RefreshTalentTree()
         {
             if (gameObject.activeSelf)
-                BuildZoneBasedTalentTree();
+                BuildProperZoneHierarchy();
         }
 
         public void Clear()
@@ -776,19 +814,26 @@ namespace Talents.UI
         }
 
         // Debug methods
-        [ContextMenu("Debug Layout Info")]
-        public void DebugLayoutInfo()
+        [ContextMenu("Debug Zone Hierarchy")]
+        public void DebugZoneHierarchy()
         {
-            if (layoutConfig == null) return;
-
-            Debug.Log($"=== LAYOUT DEBUG INFO ===");
-            Debug.Log($"Content Size: {talentTreeContent.sizeDelta}");
-            Debug.Log($"Actual Content Height: {actualContentHeight}");
-            Debug.Log($"Zone Count: {zoneContainers.Count}");
-            Debug.Log($"Active Nodes: {activeNodes.Count}");
-            Debug.Log($"Layout Config: {layoutConfig.name}");
-            Debug.Log($"Node Spacing: {layoutConfig.NodeSpacing}");
-            Debug.Log($"Zone Spacing: {layoutConfig.ZoneSpacing}");
+            Debug.Log($"=== ZONE HIERARCHY DEBUG ===");
+            Debug.Log($"Total Zones: {zoneContainers.Count}");
+            Debug.Log($"Total Nodes: {activeNodes.Count}");
+            
+            foreach (var zone in zoneContainers)
+            {
+                int zoneLevel = zone.Key;
+                Transform container = zone.Value;
+                int childCount = container.childCount;
+                
+                Debug.Log($"Zone {zoneLevel}: {childCount} children");
+                for (int i = 0; i < container.childCount; i++)
+                {
+                    var child = container.GetChild(i);
+                    Debug.Log($"  - {child.name}");
+                }
+            }
         }
 
         [ContextMenu("Force Scroll to Bottom")]
