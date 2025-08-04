@@ -12,7 +12,7 @@ namespace OctoberStudio
         [ContextMenu("Test Damage")]
         public void TestDamage()
         {
-            float multiplier = ElementSystem.CalculateElementalDamageMultiplier(attackerElement, defenderElement);
+            float multiplier = ElementSystem.Instance.CalculateElementalDamageMultiplier(attackerElement, defenderElement);
             float finalDamage = baseDamage * multiplier;
             
             Debug.Log($"Base Damage: {baseDamage}");
@@ -32,7 +32,7 @@ namespace OctoberStudio
             {
                 foreach (var defender in elements)
                 {
-                    float multiplier = ElementSystem.CalculateElementalDamageMultiplier(attacker, defender);
+                    float multiplier = ElementSystem.Instance.CalculateElementalDamageMultiplier(attacker, defender);
                     string result = multiplier > 1f ? "STRONG" : multiplier < 1f ? "WEAK" : "NEUTRAL";
                     Debug.Log($"{attacker} vs {defender}: {multiplier:F1}x ({result})");
                 }

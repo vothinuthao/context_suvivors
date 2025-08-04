@@ -3,6 +3,7 @@ using OctoberStudio.Enemy;
 using OctoberStudio.Extensions;
 using OctoberStudio.Timeline;
 using System.Collections.Generic;
+using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.Serialization;
@@ -49,7 +50,17 @@ namespace OctoberStudio
 
         public EnemyData Data { get; private set; }
         public WaveOverride WaveOverride { get; protected set; }
-        public ElementType ElementType => Data.ElementType;
+        public ElementType ElementType => Data.ElementType != ElementType.None ? Data.ElementType : ElementType.Fire;
+
+        public ElementType GetElementType()
+        {
+            if(Data == null)
+            {
+                Debug.LogWarning("EnemyData is not set for " + gameObject.name);
+                return ElementType.Fire; 
+            }
+            return Data.ElementType != ElementType.None ? Data.ElementType : ElementType.Fire;
+        }
 
         public bool IsVisible => spriteRenderer.isVisible;
         public bool IsAlive => HP > 0;
@@ -237,7 +248,7 @@ namespace OctoberStudio
             }
 
             // Apply elemental damage multiplier
-            float elementalMultiplier = ElementSystem.CalculateElementalDamageMultiplier(ElementType, defenderElement);
+            float elementalMultiplier = ElementSystem.Instance.CalculateElementalDamageMultiplier(GetElementType(), defenderElement);
             baseDamage *= elementalMultiplier;
 
             return baseDamage;
@@ -257,7 +268,7 @@ namespace OctoberStudio
             if (!IsAlive) return;
             if (IsInvulnerable) return;
 
-            float elementalMultiplier = ElementSystem.CalculateElementalDamageMultiplier(attackerElement, ElementType);
+            float elementalMultiplier = ElementSystem.Instance.CalculateElementalDamageMultiplier(attackerElement, GetElementType());
             float finalDamage = damage * elementalMultiplier;
 
             HP -= finalDamage;

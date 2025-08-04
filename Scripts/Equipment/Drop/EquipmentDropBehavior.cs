@@ -135,7 +135,7 @@ namespace OctoberStudio.Equipment.Drop
                     PlayRarityBasedSound();
                     
                     // Log for debugging
-                    Debug.Log($"[EquipmentDropBehavior] Picked up: {equipmentData.GetDisplayName()} (UID: {addedItem.uid})");
+                     Debug.Log($"[EquipmentDropBehavior] Picked up: {equipmentData.GetDisplayName()} (UID: {addedItem.uid})");
                 }
                 else
                 {

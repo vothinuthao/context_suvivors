@@ -8,7 +8,7 @@ namespace OctoberStudio
         [SerializeField] ElementSystemConfig config;
 
 
-        public static float CalculateElementalDamageMultiplier(ElementType attackerElement, ElementType defenderElement)
+        public float CalculateElementalDamageMultiplier(ElementType attackerElement, ElementType defenderElement)
         {
             if (Instance?.config != null)
             {

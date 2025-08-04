@@ -1,18 +1,9 @@
-﻿using Common.Scripts.Equipment.UI;
-using OctoberStudio.Audio;
-using OctoberStudio.Easing;
-using OctoberStudio.Equipment;
-using OctoberStudio.Input;
-using OctoberStudio.Save;
+﻿using OctoberStudio.Equipment;
 using System;
-using System.Collections;
+using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
-using UnityEngine.Events;
-using UnityEngine.EventSystems;
-using UnityEngine.InputSystem;
 using UnityEngine.UI;
-
 namespace OctoberStudio.UI
 {
     public class HarvestWindowBehavior : MonoBehaviour
@@ -20,68 +11,97 @@ namespace OctoberStudio.UI
         [SerializeField] StagesDatabase stagesDatabase;
         private StageSave save;
 
-        [Header("UI Elements")]
-        [SerializeField] Button quickHarvestButton;
+        [Header("UI Elements")] [SerializeField]
+        Button quickHarvestButton;
         [SerializeField] Button harvestButton;
         [SerializeField] GameObject rewardPopup;
+
         [SerializeField] TMP_Text countdownText;
-        //[SerializeField] Text energyText;
         [SerializeField] TMP_Text quickHarvestLimitText;
 
-    
+        [Header("Reward per hour Display")] [SerializeField]
+        private TMP_Text coinsPerHourLabel;
 
-       [Header("Top Panel")]
-        [SerializeField] TMP_Text stageNumberLabel;
+        [SerializeField] private TMP_Text expPerHourLabel;
+        
+        [Header("Top Panel")] [SerializeField] TMP_Text stageNumberLabel;
         [SerializeField] Image progressFillImage;
-        
-        [Header("Harvest Settings")]
-        [SerializeField] float baseCoinsPerSecond = 10f;
+
+        [Header("Harvest Settings")] [SerializeField]
+        float baseCoinsPerSecond = 10f;
+
         [SerializeField] float maxOfflineHours = 24f;
-        //[SerializeField] int quickHarvestEnergyCost = 15;
+
+        [SerializeField] int quickHarvestEnergyCost = 15;
         [SerializeField] int quickHarvestLimit = 3;
+        [SerializeField] private RectTransform rewardItemContainer;
+        [SerializeField] private GameObject rewardItemPrefab;
 
-        //[Header("Harvest Display")]
-        //[SerializeField] ScalingLabelBehavior offlineCoinsLabel;
-        //[SerializeField] ScalingLabelBehavior offlineTimeLabel;
-      
-
-        //[Header("Animation")]
-        //[SerializeField] ParticleSystem collectParticles;
-        
-        //[Header("Inventory")]
-        //[SerializeField] private GameObject inventoryItemPrefab;
-        //[SerializeField] private RectTransform inventoryContent;
-        //[SerializeField] private ScrollRect inventoryScrollRect;
-
+        [SerializeField] Button closePopupButton;
+        [SerializeField] private Button resetEnergyButton;
+        [SerializeField] private Button resetHarvestLimitButton;
         //public event UnityAction OnBackPressed;
         private DateTime lastHarvestTime;
         private float remainingSeconds;
         private bool canHarvest;
         private int remainingQuickHarvests;
+        private int currentStageLevel;
+
+        [Header("Reward Icons")]
+        [SerializeField] private Sprite goldIcon;
+        [SerializeField] private Sprite expIcon;
+        [SerializeField] private Sprite energyIcon;
+// Nếu sau này cần gem:
+        //SerializeField] private Sprite gemIcon;
+        
         private void Start()
         {
-            save = GameController.SaveManager.GetSave<StageSave>("Stage");
 
-            save.onSelectedStageChanged += InitStage;
-
-         
         }
 
         public void Init()
         {
+            LoadHarvestData();
             quickHarvestButton.onClick.AddListener(QuickHarvest);
             harvestButton.onClick.AddListener(NormalHarvest);
             rewardPopup.SetActive(false);
-
+            closePopupButton.onClick.AddListener(() => rewardPopup.SetActive(false));
             lastHarvestTime = DateTime.Now;
-            remainingSeconds = maxOfflineHours * 3600f;
-            remainingQuickHarvests = quickHarvestLimit;
-            canHarvest = false;
-
+            // remainingSeconds = maxOfflineHours * 3600f;
+            resetEnergyButton.onClick.AddListener(ResetEnergy);
+            resetHarvestLimitButton.onClick.AddListener(ResetQuickHarvestLimit);
             UpdateHarvestDisplay();
             UpdateEnergyDisplay();
-
+            UpdateHighestUnlockedMapDisplay();
+            var stageSave = GameController.SaveManager.GetSave<StageSave>("Stage");
+            InitStage(stageSave.MaxReachedStageId);
         }
+        private void ResetEnergy()
+        {
+            if (GameController.EnergyManager != null)
+            {
+                GameController.EnergyManager.ResetEnergy();
+                Debug.Log("✅ Energy reset to max.");
+            }
+        }
+
+        private void ResetQuickHarvestLimit()
+        {
+            remainingQuickHarvests = quickHarvestLimit;
+            SaveHarvestData();
+            GameController.SaveManager.Save();
+            UpdateEnergyDisplay();
+            Debug.Log("✅ Quick Harvest limit reset.");
+        }
+        public void InitStage(int stageId)
+        {
+            // Sửa lại thành world thay vì stage level
+            StageSave stageSave = GameController.SaveManager.GetSave<StageSave>("Stage");
+            int currentWorld = stageSave.MaxReachedStageId + 1;
+
+            UpdateRewardsPerHourDisplay(currentWorld);
+        }
+
         private void Update()
         {
             if (!canHarvest)
@@ -92,24 +112,22 @@ namespace OctoberStudio.UI
                     remainingSeconds = 0;
                     canHarvest = true;
                     remainingQuickHarvests = quickHarvestLimit;
+                    SaveHarvestData();
+                    GameController.SaveManager.Save();
                     UpdateEnergyDisplay();
                 }
+
                 UpdateHarvestDisplay();
             }
+            int energyCost = 15;
+            bool hasEnoughEnergy = GameController.EnergyManager != null &&
+                                   GameController.EnergyManager.Energy >= energyCost;
 
-            quickHarvestButton.interactable = remainingQuickHarvests > 0;
+            quickHarvestButton.interactable = (remainingQuickHarvests > 0 && hasEnoughEnergy);
             harvestButton.interactable = canHarvest;
         }
 
-        public void InitStage(int stageId)
-        {
-            
-            var stage = stagesDatabase.GetStage(stageId);
 
-           
-            stageNumberLabel.text = $"Stage {stageId + 1}";
-           
-        }
         private void UpdateHarvestDisplay()
         {
             TimeSpan timeSpan = TimeSpan.FromSeconds(remainingSeconds);
@@ -124,24 +142,45 @@ namespace OctoberStudio.UI
 
         private void UpdateEnergyDisplay()
         {
-            //energyText.text = $"Energy: {currentEnergy}";
-            quickHarvestLimitText.text = $"Limit: {remainingQuickHarvests}";
+            // ✅ Cập nhật lượt Quick Harvest
+            quickHarvestLimitText.text = $"Limit: {remainingQuickHarvests}/{quickHarvestLimit}";
         }
 
         private void QuickHarvest()
         {
-            if (remainingQuickHarvests > 0)
+            int quickHarvestEnergyCost = 15;
+
+            if (remainingQuickHarvests > 0 &&
+                GameController.EnergyManager.TrySpendEnergy(quickHarvestEnergyCost)) // ✅ thêm điều kiện này
             {
                 remainingQuickHarvests--;
-                ShowRewardPopup();
+                SaveHarvestData();
+                GameController.SaveManager.Save();
                 UpdateEnergyDisplay();
+                ShowRewardPopup();
+                
+            }
+            else
+            {
+                Debug.Log("Not enough Energy to Quick Harvest!");
+                // Optional: Hiện popup hoặc feedback UI ở đây
             }
         }
+
+
         private void NormalHarvest()
         {
             if (canHarvest)
             {
-                ShowRewardPopup();
+                canHarvest = false;
+                remainingSeconds = maxOfflineHours * 3600f;
+        
+                SaveHarvestData();                         // Lưu ngay
+                GameController.SaveManager.Save();
+                UpdateEnergyDisplay();                     // Update UI
+                UpdateHarvestDisplay();                    // Update thanh thời gian
+
+                ShowRewardPopup();                         // Cuối cùng mới hiển thị reward
             }
         }
 
@@ -150,181 +189,229 @@ namespace OctoberStudio.UI
             gameObject.SetActive(true);
             //EasingManager.DoNextFrame(() => RefreshInventory());
         }
+
+       
         private void ShowRewardPopup()
+            {
+                rewardPopup.SetActive(true);
+
+                // Tạo rewards
+                int currentWorld = GameController.SaveManager.GetSave<StageSave>("Stage").MaxReachedStageId + 1;
+                var rewards = GenerateDummyRewards(currentWorld);
+
+                // ✅ Hiển thị popup
+                DisplayRewardsOnPopup(rewards);
+
+                // ✅ Áp dụng phần thưởng vào kho
+                ApplyRewards(rewards);
+
+                // Reset countdown
+                lastHarvestTime = DateTime.Now;
+                remainingSeconds = maxOfflineHours * 3600f;
+                canHarvest = false;
+                SaveHarvestData();
+                GameController.SaveManager.Save();
+                UpdateHarvestDisplay();
+            }
+
+        private void UpdateHighestUnlockedMapDisplay()
         {
-            rewardPopup.SetActive(true);
+            // Lấy dữ liệu từ StageSave
+            StageSave stageSave = GameController.SaveManager.GetSave<StageSave>("Stage");
+            int maxUnlockedStage = stageSave.MaxReachedStageId;
 
-            lastHarvestTime = DateTime.Now;
-            remainingSeconds = maxOfflineHours * 3600f;
-            canHarvest = false;
-
-            UpdateHarvestDisplay();
+            // Cập nhật UI hiển thị World
+            stageNumberLabel.text = $"World {maxUnlockedStage + 1}";
         }
 
-        //public void Open()
-        //{
-        //    gameObject.SetActive(true);
-        //    CalculateOfflineRewards();
-        //    UpdateHarvestDisplay();
-        //    EasingManager.DoNextFrame(() => {
-        //        if (hasOfflineRewards)
-        //        {
-        //            EventSystem.current.SetSelectedGameObject(collectAllButton.gameObject);
-        //        }
-        //        else
-        //        {
-        //            EventSystem.current.SetSelectedGameObject(backButton.gameObject);
-        //        }
-        //        GameController.InputManager.InputAsset.UI.Back.performed += OnBackInputClicked;
-        //    });
+        private int GetCoinsPerHour(int world)
+        {
+            // Giả sử Level 1 là 400 coins, mỗi level tăng thêm 50 coins
+            int baseCoins = 100;
+            int coinsIncrementPerWorld = 50;
 
-        //    GameController.InputManager.onInputChanged += OnInputChanged;
-        //}
+            return baseCoins + coinsIncrementPerWorld * (world - 1);
+        }
+
+        private int GetExpPerHour(int world)
+        {
+            // Giả sử Level 1 là 100 exp, mỗi level tăng thêm 20 exp
+            int baseExp = 100;
+            int expIncrementPerWorld = 20;
+
+            return baseExp + expIncrementPerWorld * (world - 1);
+        }
+
+        private void UpdateRewardsPerHourDisplay(int world)
+        {
+            int coinsPerHour = GetCoinsPerHour(world);
+            int expPerHour = GetExpPerHour(world);
+
+            coinsPerHourLabel.text = $"{coinsPerHour}/h";
+            expPerHourLabel.text = $"{expPerHour}/h";
+        }
 
         public void Close()
         {
             gameObject.SetActive(false);
-            
-            //GameController.InputManager.InputAsset.UI.Back.performed -= OnBackInputClicked;
-            //GameController.InputManager.onInputChanged -= OnInputChanged;
+            foreach (Transform child in rewardItemContainer)
+                Destroy(child.gameObject);
         }
 
-        //private void CalculateOfflineRewards()
-        //{
-        //    var lastSaveTime = System.DateTime.Now.AddHours(-2); // Simulate 2 hours offline
-        //    var currentTime = System.DateTime.Now;
+        private void DisplayRewardsOnPopup(List<HarvestReward> rewards)
+        {
+            // Clear rewards before showing new ones
+            foreach (Transform child in rewardItemContainer)
+                Destroy(child.gameObject);
+
+            foreach (var reward in rewards)
+            {
+                var itemGO = Instantiate(rewardItemPrefab, rewardItemContainer);
+                var itemUI = itemGO.GetComponent<RewardItemUI>();
+                itemUI.Init(reward.icon, $"{reward.name} x{reward.amount}");
+                
+            }
+        }
+        private void LoadHarvestData()
+        {
+            var save = GameController.SaveManager.GetSave<HarvestSave>("Harvest");
+
+            // Tính thời gian offline
+            long currentTicks = DateTime.UtcNow.Ticks;
+            float secondsPassed = (float)TimeSpan.FromTicks(currentTicks - save.LastHarvestTicks).TotalSeconds;
+
+            remainingQuickHarvests = save.RemainingQuickHarvests;
+            remainingSeconds = Mathf.Max(0f, save.RemainingSeconds - secondsPassed);
+            canHarvest = remainingSeconds <= 0f;
+
+            // Nếu harvest đã sẵn sàng thì reset lượt quick
+            if (canHarvest)
+                remainingQuickHarvests = quickHarvestLimit;
+        }
+
+        private void SaveHarvestData()
+        {
+            var save = GameController.SaveManager.GetSave<HarvestSave>("Harvest");
+            save.RemainingQuickHarvests = remainingQuickHarvests;
+            save.RemainingSeconds = remainingSeconds;
+            save.CanHarvest = canHarvest;
+            save.LastHarvestTicks = DateTime.UtcNow.Ticks;
+        }
+
+
+
+        private List<HarvestReward> GenerateDummyRewards(int world)
+        {
+            var rewards = new List<HarvestReward>();
+
+            rewards.Add(new HarvestReward
+            {
+                rewardType = RewardType.Gold,
+                icon = goldIcon,
+                name = "Gold",
+                amount = GetCoinsPerHour(world) * 24
+            });
+
+            rewards.Add(new HarvestReward
+            {
+                rewardType = RewardType.Exp,
+                icon = expIcon,
+                name = "EXP",
+                amount = GetExpPerHour(world) * 24
+            });
+
+            rewards.Add(new HarvestReward
+            {
+                rewardType = RewardType.Energy,
+                icon = energyIcon,
+                name = "Energy",
+                amount = UnityEngine.Random.Range(3, 6)
+            });
+
+// Gem – nếu cần trong tương lai
+// rewards.Add(new HarvestReward
+// {
+//     icon = gemIcon,
+//     name = "Gem",
+//     amount = 5
+// });
+
+            // Equipment ngẫu nhiên (ví dụ 2 món)
             
-        //    offlineTime = (float)(currentTime - lastSaveTime).TotalSeconds;
-            
-        //    // Cap offline time to maximum
-        //    float maxOfflineSeconds = maxOfflineHours * 3600f;
-        //    offlineTime = Mathf.Min(offlineTime, maxOfflineSeconds);
-            
-        //    // Calculate offline coins
-        //    offlineCoins = Mathf.FloorToInt(offlineTime * baseCoinsPerSecond);
-            
-        //    hasOfflineRewards = offlineCoins > 0;
-        //}
+            for (int i = 0; i < 2; i++)
+            {
+                if (EquipmentDatabase.Instance == null) return rewards;
+                var equip = EquipmentDatabase.Instance.GetRandomEquipmentByRarity(EquipmentRarity.Rare);
+                if (equip != null)
+                {
+                    rewards.Add(new HarvestReward
+                    {
+                        rewardType = RewardType.Equipment,
+                        icon = equip.GetIcon(),
+                        name = equip.GetDisplayName(),
+                        amount = 1,
+                        equipmentData = equip
+                    });
+                }
+            }
 
-        //private void UpdateHarvestDisplay()
-        //{
-        //    if (offlineTimeLabel != null)
-        //    {
-        //        float hours = offlineTime / 3600f;
-        //        string timeText = hours >= 1f ? 
-        //            $"{hours:F1}h" : 
-        //            $"{offlineTime / 60f:F0}m";
-        //        // offlineTimeLabel.label.text = timeText;
-        //    }
-            
-        //    if (offlineCoinsLabel != null)
-        //    {
-        //        offlineCoinsLabel.SetAmount(offlineCoins);
-        //    }
-            
-        //    if (progressFillImage != null)
-        //    {
-        //        float progress = offlineTime / (maxOfflineHours * 3600f);
-        //        progressFillImage.fillAmount = progress;
-        //    }
-            
-        //    // Enable/disable collect button
-        //    // collectAllButton.interactable = hasOfflineRewards;
-        //}
+            return rewards;
+        }
+        private void ApplyRewards(List<HarvestReward> rewards)
+        {
+            foreach (var reward in rewards)
+            {
+                if (reward == null || reward.amount <= 0) continue;
 
-        //private void OnCollectAllClicked()
-        //{
-        //    if (!hasOfflineRewards) return;
+                switch (reward.rewardType)
+                {
+                    case RewardType.Gold:
+                        GameController.CurrenciesManager?.Add("gold", reward.amount);
+                        break;
 
-        //    GameController.AudioManager.PlaySound(AudioManager.BUTTON_CLICK_HASH);
+                    case RewardType.Gem:
+                        GameController.CurrenciesManager?.Add("gem", reward.amount);
+                        break;
 
-        //    // Add coins to player
-        //    GameController.TempGold?.Deposit(offlineCoins);
+                    case RewardType.Energy:
+                        GameController.EnergyManager?.AddEnergy(reward.amount);
+                        break;
 
-        //    // Play collect animation
-        //    StartCoroutine(CollectAnimation());
-        //}
+                    case RewardType.Exp:
+                        // Nếu bạn có ExperienceManager thì gọi ở đây
+                        // GameController.ExperienceManager?.AddExp(reward.amount);
+                        break;
 
-        //private IEnumerator CollectAnimation()
-        //{
-        //    // Play particle effect
-        //    if (collectParticles != null)
-        //    {
-        //        collectParticles.Play();
-        //    }
+                    case RewardType.Equipment:
+                        if (reward.equipmentData != null)
+                        {
+                            var equip = reward.equipmentData;
+                            GameController.SaveManager
+                                .GetSave<EquipmentSave>("Equipment")
+                                .AddToInventory(equip.EquipmentType, equip.ID, 1);
+                        }
+                        break;
+                }
 
-        //    // Animate coins counting up
-        //    int startCoins = 0;
-        //    float duration = 1.5f;
-        //    float elapsed = 0f;
+            }
+        }
 
-        //    while (elapsed < duration)
-        //    {
-        //        elapsed += Time.unscaledDeltaTime;
-        //        float progress = elapsed / duration;
-
-        //        int currentDisplayCoins = Mathf.FloorToInt(Mathf.Lerp(startCoins, offlineCoins, progress));
-        //        offlineCoinsLabel.SetAmount(currentDisplayCoins);
-
-        //        yield return null;
-        //    }
-
-        //    // Reset rewards
-        //    offlineCoins = 0;
-        //    hasOfflineRewards = false;
-
-        //    // Update display
-        //    UpdateHarvestDisplay();
-
-        //    // Focus back button
-        //   //EventSystem.current.SetSelectedGameObject(backButton.gameObject);
-        //}
-
-        
+        [System.Serializable]
+        public class HarvestReward
+        {
+            public RewardType rewardType;
+            public Sprite icon;
+            public string name;
+            public int amount;
+            public EquipmentModel equipmentData;
+        }
+        public enum RewardType
+        {
+            Gold,
+            Exp,
+            Energy,
+            Gem,
+            Equipment
+        }
     }
-
-
-    //private void OnInputChanged(InputType prevInput, InputType inputType)
-    //{
-    //    if (prevInput == InputType.UIJoystick)
-    //    {
-    //        EasingManager.DoNextFrame(() =>
-    //        {
-    //            if (hasOfflineRewards && collectAllButton.interactable)
-    //            {
-    //                EventSystem.current.SetSelectedGameObject(collectAllButton.gameObject);
-    //            }
-    //            else
-    //            {
-    //                EventSystem.current.SetSelectedGameObject(backButton.gameObject);
-    //            }
-    //        });
-    //    }
-    //}
-
-    //private void OnDestroy()
-    //    {
-    //        if (GameController.InputManager != null)
-    //        {
-    //            GameController.InputManager.InputAsset.UI.Back.performed -= OnBackInputClicked;
-    //            GameController.InputManager.onInputChanged -= OnInputChanged;
-    //        }
-    //    }
-
-        // Public methods for external access
-        //public bool HasOfflineRewards()
-        //{
-        //    return hasOfflineRewards;
-        //}
-
-        //public int GetOfflineCoins()
-        //{
-        //    return offlineCoins;
-        //}
-
-        //public float GetOfflineTime()
-        //{
-        //    return offlineTime;
-        //}
-    //}
 }

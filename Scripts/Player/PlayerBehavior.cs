@@ -286,7 +286,7 @@ namespace OctoberStudio
 
                     enemy.onEnemyDied += OnEnemyDied;
                     // TakeDamage(enemy.GetDamage());
-                    TakeDamage(enemy.GetDamage(ElementType), enemy.ElementType);
+                    TakeDamage(enemy.GetDamage(ElementType), enemy.GetElementType());
                 }
             }
             else
@@ -334,7 +334,7 @@ namespace OctoberStudio
         {
             if (invincible || healthbar.IsZero) return;
 
-            float elementalMultiplier = ElementSystem.CalculateElementalDamageMultiplier(attackerElement, ElementType);
+            float elementalMultiplier = ElementSystem.Instance.CalculateElementalDamageMultiplier(attackerElement, ElementType);
             float finalDamage = damage * DamageReductionMultiplier * elementalMultiplier;
             healthbar.Subtract(finalDamage);
 

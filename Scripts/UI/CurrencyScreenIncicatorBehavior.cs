@@ -12,13 +12,21 @@ namespace OctoberStudio.Currency
 
         private void Start()
         {
-            Currency = GameController.SaveManager.GetSave<CurrencySave>(currencyID);
+            if (GameController.CurrenciesManager != null)
+            {
+                Currency = GameController.SaveManager.GetSave<CurrencySave>(currencyID);
 
-            SetAmount(Currency.Amount);
+                SetAmount(Currency.Amount);
 
-            icon.sprite = GameController.CurrenciesManager.GetIcon(currencyID);
+                icon.sprite = GameController.CurrenciesManager.GetIcon(currencyID);
 
-            Currency.onGoldAmountChanged += SetAmount;
+                Currency.onGoldAmountChanged += SetAmount;
+
+            }
+            else
+            {
+                Debug.LogWarning("CurrenciesManager is still null in CurrencyScreenIncicatorBehavior!");
+            }
         }
 
         private void OnDestroy()

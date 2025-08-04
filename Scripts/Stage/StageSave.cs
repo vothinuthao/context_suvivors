@@ -33,7 +33,8 @@ namespace OctoberStudio
         public int XPLEVEL { get => xpLevel; set => xpLevel = value; }
         public float XP { get => xp; set => xp = value; }
         public int EnemiesKilled { get => enemiesKilled; set => enemiesKilled = value; }
-
+        [SerializeField] private bool hasCollectedEnergy;
+       
         public void SetSelectedStageId(int selectedStageId)
         {
             this.selectedStageId = selectedStageId;
@@ -50,5 +51,6 @@ namespace OctoberStudio
         {
 
         }
+        
     }
 }
