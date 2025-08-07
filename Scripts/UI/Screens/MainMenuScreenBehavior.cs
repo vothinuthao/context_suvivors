@@ -20,9 +20,10 @@ namespace OctoberStudio.UI
         [SerializeField] EquipmentWindowBehavior equipmentWindow;
         [SerializeField] TalentWindowBehavior talentWindow;
         [SerializeField] HarvestWindowBehavior harvestWindow;
+        [SerializeField] ShopWindowBehavior shopWindow;
 
         [Header("Shop & Harvest (Future Windows)")]
-        [SerializeField] GameObject shopWindow;                     // Shop tab - placeholder
+        //[SerializeField] GameObject shopWindow;                     // Shop tab - placeholder
         //[SerializeField] GameObject harvestWindow;                  // Harvest tab - placeholder
 
         private Canvas canvas;
@@ -51,6 +52,7 @@ namespace OctoberStudio.UI
             equipmentWindow.Init();
             talentWindow.Init();
             harvestWindow.Init();
+            shopWindow.Init();
 
         }
 
@@ -96,10 +98,11 @@ namespace OctoberStudio.UI
             equipmentWindow.Close();
             talentWindow.Close();
             harvestWindow.Close();
+            shopWindow.Close();
       
             
             // Close placeholder windows
-            if (shopWindow != null) shopWindow.SetActive(false);
+            // if (shopWindow != null) shopWindow.SetActive(false);
             //if (harvestWindow != null) harvestWindow.SetActive(false);
         }
 
@@ -117,7 +120,7 @@ namespace OctoberStudio.UI
         {
             if (shopWindow != null)
             {
-                shopWindow.SetActive(true);
+                shopWindow.Open();
             }
         }
         private void ShowTalents()

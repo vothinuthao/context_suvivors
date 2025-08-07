@@ -1,8 +1,6 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using DG.Tweening;
-using OctoberStudio;
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
@@ -20,8 +18,6 @@ namespace Talents.UI
     public class TalentWindowBehavior : MonoBehaviour
     {
         [Header("UI References")]
-        [SerializeField] private Button backButton;
-        [SerializeField] private Button resetAllButton;
         [SerializeField] private TMP_Text goldCoinsText;
         [SerializeField] private TMP_Text orcText;
         [SerializeField] private TMP_Text titleText;
@@ -64,7 +60,7 @@ namespace Talents.UI
         private TalentLayoutConfig layoutConfig;
 
         // State
-        private bool isInitialized = false;
+        private bool _isInitialized = false;
         private System.Action confirmationCallback;
 
         // Events
@@ -75,10 +71,6 @@ namespace Talents.UI
         /// </summary>
         public void Init()
         {
-
-            if (resetAllButton != null)
-                resetAllButton.onClick.AddListener(ShowResetConfirmation);
-
             if (confirmButton != null)
                 confirmButton.onClick.AddListener(OnConfirmButtonClicked);
 
@@ -91,7 +83,7 @@ namespace Talents.UI
             SubscribeToEvents();
             HideUIElements();
 
-            isInitialized = true;
+            _isInitialized = true;
         }
 
         /// <summary>
@@ -167,7 +159,7 @@ namespace Talents.UI
         {
             gameObject.SetActive(true);
             
-            if (isInitialized)
+            if (_isInitialized)
             {
                 BuildProperZoneHierarchy();
                 UpdateCurrencyUI();
@@ -793,7 +785,7 @@ namespace Talents.UI
 
         private void OnEnable()
         {
-            if (isInitialized)
+            if (_isInitialized)
                 StartCoroutine(RefreshTalentTreeDelayed());
         }
 

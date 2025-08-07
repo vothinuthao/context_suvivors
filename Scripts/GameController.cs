@@ -35,6 +35,9 @@ namespace OctoberStudio
         
         [SerializeField] protected EquipmentManager equipmentManager;
         public static EquipmentManager EquipmentManager => instance.equipmentManager;
+      [SerializeField] protected EnergyManager energyManager;
+        public static EnergyManager EnergyManager => instance.energyManager;
+        
 
         public static ISaveManager SaveManager { get; private set; }
         public static IAudioManager AudioManager { get; private set; }
@@ -43,7 +46,7 @@ namespace OctoberStudio
 
         public static CurrencySave Gold { get; private set; }
         public static CurrencySave TempGold { get; private set; }
-
+        public static EnergyStats EnergyStats { get; private set; }
         public static AudioSource Music { get; private set; }
 
         private static StageSave stageSave;
@@ -75,10 +78,10 @@ namespace OctoberStudio
         {
             Gold = SaveManager.GetSave<CurrencySave>("gold");
             TempGold = SaveManager.GetSave<CurrencySave>("temp_gold");
-
+            EnergyStats = SaveManager.GetSave<EnergyStats>("energy_stats");
             stageSave = SaveManager.GetSave<StageSave>("Stage");
-           
-
+            energyManager.Init();
+            energyManager.ResetEnergy();
             if (!stageSave.loadedBefore)
             {
                 stageSave.loadedBefore = true;
@@ -154,6 +157,7 @@ namespace OctoberStudio
         {
             AudioManager = audioManager;
         }
+        
         
 
         public static void LoadStage()
