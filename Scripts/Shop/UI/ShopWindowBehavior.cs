@@ -155,7 +155,7 @@ namespace OctoberStudio.UI
             CreateBundleItems();
             CreateGachaItems();
             CreateCharacterGachaItems();
-            CreateGoldItems();
+            // CreateGoldItems();
 
             isShopReady = true;
             LogDebug($"Shop initialized with {allShopItems.Count} items");
@@ -518,8 +518,6 @@ namespace OctoberStudio.UI
                 Debug.Log($"[ShopWindow] {message}");
             }
         }
-
-        // ===== UNITY LIFECYCLE =====
 
         private void OnDestroy()
         {

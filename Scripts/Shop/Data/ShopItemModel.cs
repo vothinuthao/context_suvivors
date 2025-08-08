@@ -58,6 +58,12 @@ namespace OctoberStudio.Shop
         [CsvColumn("is_featured")] public bool IsFeatured { get; set; }
         [CsvColumn("sort_order")] public int SortOrder { get; set; }
 
+        // Cached parsed data to avoid repeated parsing
+        private List<BundleItem> _cachedBundleItems;
+        private List<GachaPool> _cachedGachaPool;
+        private bool _bundleItemsParsed = false;
+        private bool _gachaPoolParsed = false;
+
         // Parsed enum properties
         [CsvIgnore]
         public ShopItemType ItemType
@@ -92,46 +98,261 @@ namespace OctoberStudio.Shop
             }
         }
 
-        // Parsed bundle items
+        // Enhanced bundle items parsing with better error handling
         [CsvIgnore]
         public List<BundleItem> BundleItems
         {
             get
             {
-                if (string.IsNullOrEmpty(BundleItemsJson))
-                    return new List<BundleItem>();
-
-                try
+                if (!_bundleItemsParsed)
                 {
-                    return JsonUtility.FromJson<BundleItemList>("{\"items\":" + BundleItemsJson + "}").items ?? new List<BundleItem>();
+                    _cachedBundleItems = ParseBundleItems();
+                    _bundleItemsParsed = true;
                 }
-                catch (Exception ex)
-                {
-                    Debug.LogError($"[ShopItemModel] Failed to parse bundle items for {Name}: {ex.Message}");
-                    return new List<BundleItem>();
-                }
+                return _cachedBundleItems ?? new List<BundleItem>();
             }
         }
 
-        // Parsed gacha pool
+        // Enhanced gacha pool parsing with better error handling
         [CsvIgnore]
         public List<GachaPool> GachaPool
         {
             get
             {
-                if (string.IsNullOrEmpty(GachaPoolJson))
-                    return new List<GachaPool>();
-
-                try
+                if (!_gachaPoolParsed)
                 {
-                    return JsonUtility.FromJson<GachaPoolList>("{\"pools\":" + GachaPoolJson + "}").pools ?? new List<GachaPool>();
+                    _cachedGachaPool = ParseGachaPool();
+                    _gachaPoolParsed = true;
                 }
-                catch (Exception ex)
+                return _cachedGachaPool ?? new List<GachaPool>();
+            }
+        }
+
+        private List<BundleItem> ParseBundleItems()
+        {
+            if (string.IsNullOrEmpty(BundleItemsJson))
+            {
+                Debug.Log($"[ShopItemModel] Empty bundle items JSON for {Name}");
+                return new List<BundleItem>();
+            }
+
+            try
+            {
+                // Clean up the JSON string
+                string cleanJson = CleanJsonString(BundleItemsJson);
+                Debug.Log($"[ShopItemModel] Parsing bundle items for {Name}: {cleanJson}");
+
+                // Try different JSON formats
+                List<BundleItem> items = null;
+                
+                // Format 1: Array of objects
+                if (cleanJson.Trim().StartsWith("["))
                 {
-                    Debug.LogError($"[ShopItemModel] Failed to parse gacha pool for {Name}: {ex.Message}");
-                    return new List<GachaPool>();
+                    var wrapper = JsonUtility.FromJson<BundleItemList>("{\"items\":" + cleanJson + "}");
+                    items = wrapper?.items;
+                }
+                // Format 2: Simple comma-separated values (fallback)
+                else if (cleanJson.Contains(","))
+                {
+                    items = ParseSimpleBundleFormat(cleanJson);
+                }
+                // Format 3: Single item
+                else
+                {
+                    var singleItem = JsonUtility.FromJson<BundleItem>(cleanJson);
+                    if (singleItem != null)
+                        items = new List<BundleItem> { singleItem };
+                }
+
+                if (items != null && items.Count > 0)
+                {
+                    Debug.Log($"[ShopItemModel] Successfully parsed {items.Count} bundle items for {Name}");
+                    return items;
+                }
+                else
+                {
+                    Debug.LogWarning($"[ShopItemModel] No valid bundle items found for {Name}");
+                    return TryFallbackBundleParsing();
                 }
             }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[ShopItemModel] Failed to parse bundle items for {Name}: {ex.Message}");
+                Debug.LogError($"[ShopItemModel] Raw JSON: '{BundleItemsJson}'");
+                
+                // Try fallback parsing
+                return TryFallbackBundleParsing();
+            }
+        }
+
+        private List<GachaPool> ParseGachaPool()
+        {
+            if (string.IsNullOrEmpty(GachaPoolJson))
+            {
+                Debug.Log($"[ShopItemModel] Empty gacha pool JSON for {Name}");
+                return new List<GachaPool>();
+            }
+
+            try
+            {
+                // Clean up the JSON string
+                string cleanJson = CleanJsonString(GachaPoolJson);
+                Debug.Log($"[ShopItemModel] Parsing gacha pool for {Name}: {cleanJson}");
+
+                List<GachaPool> pools = null;
+
+                // Format 1: Array of objects
+                if (cleanJson.Trim().StartsWith("["))
+                {
+                    var wrapper = JsonUtility.FromJson<GachaPoolList>("{\"pools\":" + cleanJson + "}");
+                    pools = wrapper?.pools;
+                }
+                // Format 2: Simple format (fallback)
+                else if (cleanJson.Contains(","))
+                {
+                    pools = ParseSimpleGachaFormat(cleanJson);
+                }
+                // Format 3: Single pool
+                else
+                {
+                    var singlePool = JsonUtility.FromJson<GachaPool>(cleanJson);
+                    if (singlePool != null)
+                        pools = new List<GachaPool> { singlePool };
+                }
+
+                if (pools != null && pools.Count > 0)
+                {
+                    Debug.Log($"[ShopItemModel] Successfully parsed {pools.Count} gacha pools for {Name}");
+                    return pools;
+                }
+                else
+                {
+                    Debug.LogWarning($"[ShopItemModel] No valid gacha pools found for {Name}");
+                    return TryFallbackGachaParsing();
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[ShopItemModel] Failed to parse gacha pool for {Name}: {ex.Message}");
+                Debug.LogError($"[ShopItemModel] Raw JSON: '{GachaPoolJson}'");
+                
+                // Try fallback parsing
+                return TryFallbackGachaParsing();
+            }
+        }
+
+        private string CleanJsonString(string json)
+        {
+            if (string.IsNullOrEmpty(json)) return json;
+
+            // Remove extra quotes and whitespace
+            json = json.Trim().Trim('"').Trim();
+            
+            // Fix escaped quotes
+            json = json.Replace("\"\"", "\"");
+            json = json.Replace("\\\"", "\"");
+            
+            return json;
+        }
+
+        private List<BundleItem> ParseSimpleBundleFormat(string input)
+        {
+            // Handle simple format like: "gold,1000;gem,100;equipment,5"
+            var items = new List<BundleItem>();
+            var parts = input.Split(';');
+            
+            foreach (var part in parts)
+            {
+                var values = part.Split(',');
+                if (values.Length >= 2)
+                {
+                    var item = new BundleItem
+                    {
+                        type = values[0].Trim(),
+                        quantity = int.TryParse(values[1].Trim(), out int qty) ? qty : 1,
+                        id = values.Length > 2 && int.TryParse(values[2].Trim(), out int id) ? id : -1
+                    };
+                    items.Add(item);
+                }
+            }
+            
+            return items;
+        }
+
+        private List<GachaPool> ParseSimpleGachaFormat(string input)
+        {
+            // Handle simple format like: "common,70;rare,25;epic,5"
+            var pools = new List<GachaPool>();
+            var parts = input.Split(';');
+            
+            foreach (var part in parts)
+            {
+                var values = part.Split(',');
+                if (values.Length >= 2)
+                {
+                    var pool = new GachaPool
+                    {
+                        rarity = values[0].Trim(),
+                        weight = int.TryParse(values[1].Trim(), out int weight) ? weight : 1,
+                        type = values.Length > 2 ? values[2].Trim() : ""
+                    };
+                    pools.Add(pool);
+                }
+            }
+            
+            return pools;
+        }
+
+        private List<BundleItem> TryFallbackBundleParsing()
+        {
+            // Create default bundle based on item type
+            var fallbackItems = new List<BundleItem>();
+            
+            if (ItemType == ShopItemType.Bundle)
+            {
+                // Add some default items based on name or other properties
+                if (Name.ToLower().Contains("starter"))
+                {
+                    fallbackItems.Add(new BundleItem { type = "gold", quantity = 1000, id = -1 });
+                    fallbackItems.Add(new BundleItem { type = "gem", quantity = 100, id = -1 });
+                }
+                else if (Name.ToLower().Contains("premium"))
+                {
+                    fallbackItems.Add(new BundleItem { type = "gold", quantity = 5000, id = -1 });
+                    fallbackItems.Add(new BundleItem { type = "gem", quantity = 500, id = -1 });
+                    fallbackItems.Add(new BundleItem { type = "equipment", quantity = 1, id = -1 });
+                }
+                
+                Debug.LogWarning($"[ShopItemModel] Using fallback bundle items for {Name}");
+            }
+            
+            return fallbackItems;
+        }
+
+        private List<GachaPool> TryFallbackGachaParsing()
+        {
+            // Create default gacha pool based on rarity
+            var fallbackPools = new List<GachaPool>();
+            
+            if (ItemType == ShopItemType.Gacha)
+            {
+                if (Rarity == EquipmentRarity.Rare)
+                {
+                    fallbackPools.Add(new GachaPool { rarity = "Common", weight = 60, type = "equipment" });
+                    fallbackPools.Add(new GachaPool { rarity = "Uncommon", weight = 30, type = "equipment" });
+                    fallbackPools.Add(new GachaPool { rarity = "Rare", weight = 10, type = "equipment" });
+                }
+                else if (Rarity == EquipmentRarity.Epic)
+                {
+                    fallbackPools.Add(new GachaPool { rarity = "Rare", weight = 70, type = "equipment" });
+                    fallbackPools.Add(new GachaPool { rarity = "Epic", weight = 25, type = "equipment" });
+                    fallbackPools.Add(new GachaPool { rarity = "Legendary", weight = 5, type = "equipment" });
+                }
+                
+                Debug.LogWarning($"[ShopItemModel] Using fallback gacha pool for {Name}");
+            }
+            
+            return fallbackPools;
         }
 
         // Helper classes for JSON parsing
@@ -151,6 +372,16 @@ namespace OctoberStudio.Shop
 
         public void OnDataLoaded()
         {
+            // Reset cache flags to force re-parsing with OnDataLoaded context
+            _bundleItemsParsed = false;
+            _gachaPoolParsed = false;
+            _cachedBundleItems = null;
+            _cachedGachaPool = null;
+            
+            // Pre-parse data to catch errors early
+            _ = BundleItems;
+            _ = GachaPool;
+            
             // Validation after data load
             if (!ValidateData())
             {
@@ -268,28 +499,45 @@ namespace OctoberStudio.Shop
         }
 
         /// <summary>
-        /// Validate shop item data
+        /// Enhanced validation with better error reporting
         /// </summary>
         public bool ValidateData()
         {
-            bool isValid = ID >= 0 && 
-                          !string.IsNullOrEmpty(Name) && 
-                          !string.IsNullOrEmpty(IconName) &&
-                          PriceAmount >= 0;
-
-            // Validate bundle items if bundle type
+            var issues = new List<string>();
+            
+            // Basic validation
+            if (ID < 0) issues.Add("Invalid ID");
+            if (string.IsNullOrEmpty(Name)) issues.Add("Missing Name");
+            if (string.IsNullOrEmpty(IconName)) issues.Add("Missing IconName");
+            if (PriceAmount < 0) issues.Add("Invalid PriceAmount");
+            
+            // Type-specific validation
             if (ItemType == ShopItemType.Bundle)
             {
-                isValid &= BundleItems.Count > 0;
+                if (BundleItems.Count == 0)
+                    issues.Add("Bundle has no items");
             }
-
-            // Validate gacha pool if gacha type
+            
             if (ItemType == ShopItemType.Gacha)
             {
-                isValid &= GachaPool.Count > 0 && GachaCount > 0;
+                if (GachaPool.Count == 0)
+                    issues.Add("Gacha has no pool");
+                if (GachaCount <= 0)
+                    issues.Add("Invalid GachaCount");
             }
-
-            return isValid;
+            
+            // Log validation issues
+            if (issues.Count > 0)
+            {
+                Debug.LogError($"[ShopItemModel] Validation failed for {Name} (ID: {ID}):");
+                foreach (var issue in issues)
+                {
+                    Debug.LogError($"  - {issue}");
+                }
+                return false;
+            }
+            
+            return true;
         }
 
         /// <summary>

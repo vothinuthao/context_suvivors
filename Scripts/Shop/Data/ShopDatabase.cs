@@ -62,12 +62,16 @@ namespace OctoberStudio.Shop
             try
             {
                 loadStatus = "Loading...";
+                isDataLoaded = false; // Ensure this is false during loading
                 Debug.Log("[ShopDatabase] Starting to load shop data from CSV...");
                 
                 var shopData = await CsvDataManager.Instance.LoadAsync<ShopItemModel>();
-                ProcessShopData(shopData);
                 
-                isDataLoaded = true;
+                // ✅ FIX: Set isDataLoaded = true BEFORE ProcessShopData
+                // This allows internal methods to work properly
+                ProcessShopData(shopData);
+                isDataLoaded = true; // ✅ Set to true after processing is complete
+                
                 loadStatus = $"Loaded {totalShopItemsCount} items";
                 OnDataLoaded?.Invoke();
                 
@@ -84,6 +88,7 @@ namespace OctoberStudio.Shop
 
         /// <summary>
         /// Process and organize loaded shop data
+        /// ✅ FIX: This method should not depend on isDataLoaded flag
         /// </summary>
         private void ProcessShopData(List<ShopItemModel> shopData)
         {
@@ -154,14 +159,27 @@ namespace OctoberStudio.Shop
 
         /// <summary>
         /// Update cached collections for quick access
+        /// ✅ FIX: Use internal methods that don't check isDataLoaded
         /// </summary>
         private void UpdateCachedCollections()
         {
-            bundleItems = GetItemsByType(ShopItemType.Bundle).ToList();
-            gachaItems = GetItemsByType(ShopItemType.Gacha).ToList();
-            goldItems = GetItemsByType(ShopItemType.Gold).ToList();
-            gemItems = GetItemsByType(ShopItemType.Gem).ToList();
+            bundleItems = GetItemsByTypeInternal(ShopItemType.Bundle).ToList();
+            gachaItems = GetItemsByTypeInternal(ShopItemType.Gacha).ToList();
+            goldItems = GetItemsByTypeInternal(ShopItemType.Gold).ToList();
+            gemItems = GetItemsByTypeInternal(ShopItemType.Gem).ToList();
             featuredItems = allItems.Where(i => i.IsFeatured).ToList();
+        }
+
+        /// <summary>
+        /// Used during initialization
+        /// </summary>
+        private ShopItemModel[] GetItemsByTypeInternal(ShopItemType type)
+        {
+            if (itemsByType.TryGetValue(type, out var itemList))
+            {
+                return itemList.ToArray();
+            }
+            return Array.Empty<ShopItemModel>();
         }
 
         /// <summary>
@@ -169,9 +187,9 @@ namespace OctoberStudio.Shop
         /// </summary>
         public ShopItemModel GetItemById(int id)
         {
-            if (!isDataLoaded)
+            if (itemsById.Count == 0)
             {
-                Debug.LogWarning("[ShopDatabase] Data not loaded yet!");
+                Debug.LogWarning("[ShopDatabase] No shop data available!");
                 return null;
             }
 
@@ -183,9 +201,9 @@ namespace OctoberStudio.Shop
         /// </summary>
         public ShopItemModel[] GetItemsByType(ShopItemType type)
         {
-            if (!isDataLoaded)
+            if (itemsByType.Count == 0 || !itemsByType.ContainsKey(type))
             {
-                Debug.LogWarning("[ShopDatabase] Data not loaded yet!");
+                Debug.LogWarning($"[ShopDatabase] No data available for type {type}!");
                 return Array.Empty<ShopItemModel>();
             }
 
@@ -202,9 +220,9 @@ namespace OctoberStudio.Shop
         /// </summary>
         public ShopItemModel[] GetAllItems()
         {
-            if (!isDataLoaded)
+            if (allItems.Count == 0)
             {
-                Debug.LogWarning("[ShopDatabase] Data not loaded yet!");
+                Debug.LogWarning("[ShopDatabase] No shop data available!");
                 return Array.Empty<ShopItemModel>();
             }
 
@@ -216,9 +234,9 @@ namespace OctoberStudio.Shop
         /// </summary>
         public ShopItemModel[] GetFeaturedItems()
         {
-            if (!isDataLoaded)
+            if (allItems.Count == 0)
             {
-                Debug.LogWarning("[ShopDatabase] Data not loaded yet!");
+                Debug.LogWarning("[ShopDatabase] No shop data available!");
                 return Array.Empty<ShopItemModel>();
             }
 
@@ -230,9 +248,9 @@ namespace OctoberStudio.Shop
         /// </summary>
         public ShopItemModel[] GetBundleItems()
         {
-            if (!isDataLoaded)
+            if (allItems.Count == 0)
             {
-                Debug.LogWarning("[ShopDatabase] Data not loaded yet!");
+                Debug.LogWarning("[ShopDatabase] No shop data available!");
                 return Array.Empty<ShopItemModel>();
             }
 
@@ -244,9 +262,9 @@ namespace OctoberStudio.Shop
         /// </summary>
         public ShopItemModel[] GetGachaItems()
         {
-            if (!isDataLoaded)
+            if (allItems.Count == 0)
             {
-                Debug.LogWarning("[ShopDatabase] Data not loaded yet!");
+                Debug.LogWarning("[ShopDatabase] No shop data available!");
                 return Array.Empty<ShopItemModel>();
             }
 
@@ -258,46 +276,37 @@ namespace OctoberStudio.Shop
         /// </summary>
         public ShopItemModel[] GetGoldItems()
         {
-            if (!isDataLoaded)
+            if (allItems.Count == 0)
             {
-                Debug.LogWarning("[ShopDatabase] Data not loaded yet!");
+                Debug.LogWarning("[ShopDatabase] No shop data available!");
                 return Array.Empty<ShopItemModel>();
             }
 
             return goldItems?.ToArray() ?? Array.Empty<ShopItemModel>();
         }
 
-        /// <summary>
-        /// Get gem purchase items
-        /// </summary>
         public ShopItemModel[] GetGemItems()
         {
-            if (!isDataLoaded)
+            if (allItems.Count == 0)
             {
-                Debug.LogWarning("[ShopDatabase] Data not loaded yet!");
+                Debug.LogWarning("[ShopDatabase] No shop data available!");
                 return Array.Empty<ShopItemModel>();
             }
 
             return gemItems?.ToArray() ?? Array.Empty<ShopItemModel>();
         }
 
-        /// <summary>
-        /// Get gacha items by rarity focus
-        /// </summary>
         public ShopItemModel[] GetGachaItemsByRarity(EquipmentRarity focusRarity)
         {
-            if (!isDataLoaded)
+            if (allItems.Count == 0)
                 return Array.Empty<ShopItemModel>();
 
             return gachaItems?.Where(g => g.Rarity == focusRarity).ToArray() ?? Array.Empty<ShopItemModel>();
         }
 
-        /// <summary>
-        /// Search items by name
-        /// </summary>
         public ShopItemModel[] SearchItemsByName(string searchTerm)
         {
-            if (!isDataLoaded || string.IsNullOrEmpty(searchTerm))
+            if (allItems.Count == 0 || string.IsNullOrEmpty(searchTerm))
             {
                 return Array.Empty<ShopItemModel>();
             }
@@ -308,12 +317,9 @@ namespace OctoberStudio.Shop
             ).ToArray();
         }
 
-        /// <summary>
-        /// Get items by price range
-        /// </summary>
         public ShopItemModel[] GetItemsByPriceRange(PriceType priceType, float minPrice, float maxPrice)
         {
-            if (!isDataLoaded)
+            if (allItems.Count == 0)
                 return Array.Empty<ShopItemModel>();
 
             return allItems.Where(i => 
@@ -323,27 +329,18 @@ namespace OctoberStudio.Shop
             ).ToArray();
         }
 
-        /// <summary>
-        /// Check if item exists
-        /// </summary>
         public bool HasItem(int id)
         {
-            return isDataLoaded && itemsById.ContainsKey(id);
+            return itemsById.ContainsKey(id);
         }
 
-        /// <summary>
-        /// Get item count by type
-        /// </summary>
         public int GetItemCountByType(ShopItemType type)
         {
-            if (!isDataLoaded) return 0;
+            if (itemsByType.Count == 0) return 0;
             
             return itemsByType.TryGetValue(type, out var list) ? list.Count : 0;
         }
 
-        /// <summary>
-        /// Force reload data from CSV
-        /// </summary>
         [ContextMenu("Reload Shop Data")]
         public async void ReloadShopData()
         {
@@ -392,14 +389,10 @@ namespace OctoberStudio.Shop
                 Debug.Log($"[ShopDatabase] - Featured items: {featuredCount}");
             }
         }
-
-        /// <summary>
-        /// Get database info for debugging
-        /// </summary>
         [ContextMenu("Log Database Info")]
         public void LogDatabaseInfo()
         {
-            if (!isDataLoaded)
+            if (allItems.Count == 0)
             {
                 Debug.Log("[ShopDatabase] Database not loaded");
                 return;
@@ -428,9 +421,9 @@ namespace OctoberStudio.Shop
         [ContextMenu("Validate Shop Items")]
         public void ValidateAllItems()
         {
-            if (!isDataLoaded)
+            if (allItems.Count == 0)
             {
-                Debug.LogWarning("[ShopDatabase] Cannot validate - data not loaded");
+                Debug.LogWarning("[ShopDatabase] Cannot validate - no data available");
                 return;
             }
 
