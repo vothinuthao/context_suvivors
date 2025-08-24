@@ -32,5 +32,26 @@ namespace OctoberStudio.Enemy
                 Debug.Log("Sword summon animation complete");
             }
         }
+
+        // Audio events for animations
+        public void PlaySwordDashSound()
+        {
+            GameController.AudioManager.PlaySound("PaladinSwordDash".GetHashCode());
+        }
+
+        public void PlayDivineSummonSound()
+        {
+            GameController.AudioManager.PlaySound("DivineSwordSummon".GetHashCode());
+        }
+
+        public void PlayWeaponDropSound()
+        {
+            GameController.AudioManager.PlaySound("WeaponClatter".GetHashCode());
+        }
+
+        public void PlayKneelDownSound()
+        {
+            GameController.AudioManager.PlaySound("ArmorKneel".GetHashCode());
+        }
     }
 }

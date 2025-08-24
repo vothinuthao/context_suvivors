@@ -18,7 +18,6 @@ namespace OctoberStudio.Enemy
         public float Damage { get; set; }
         public event UnityAction<DivineSwordBehavior> onFinished;
 
-        private WarningCircleBehavior warningCircle;
         private bool isHiding = false;
 
         public void Spawn(float lifetime)
@@ -30,31 +29,8 @@ namespace OctoberStudio.Enemy
             
             isHiding = false;
 
-            if (StageController.PoolsManager != null)
-            {
-                var warningPool = StageController.PoolsManager.GetPool("Warning Circle");
-                if (warningPool != null)
-                {
-                    warningCircle = warningPool.GetEntity<WarningCircleBehavior>();
-                    if (warningCircle != null)
-                    {
-                        warningCircle.transform.position = transform.position;
-                        warningCircle.Play(1f, 0.5f, 0.8f, ShowSword);
-                    }
-                    else
-                    {
-                        EasingManager.DoAfter(1.3f, ShowSword);
-                    }
-                }
-                else
-                {
-                    EasingManager.DoAfter(1.3f, ShowSword);
-                }
-            }
-            else
-            {
-                EasingManager.DoAfter(1.3f, ShowSword);
-            }
+            // Show sword immediately without warning circle (already handled by boss)
+            ShowSword();
 
             if (lifetime > 0)
             {
@@ -100,11 +76,6 @@ namespace OctoberStudio.Enemy
 
         public void Clear()
         {
-            if (warningCircle != null)
-            {
-                warningCircle.gameObject.SetActive(false);
-                warningCircle = null;
-            }
             gameObject.SetActive(false);
         }
 

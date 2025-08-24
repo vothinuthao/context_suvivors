@@ -9,5 +9,6 @@ namespace OctoberStudio.Bossfight
         Void = 4,
         Bell = 5,
         CorruptedPaladin = 6,
+        ForestGuardianLord = 7,
     }
 }

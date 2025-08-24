@@ -67,20 +67,41 @@ namespace OctoberStudio.Enemy
         {
             while (IsAlive)
             {
-                yield return MoveToPlayer();
+                // Movement phase - move to random position like other bosses
+                yield return Movement();
+                
+                // Skill 1: Dash Attack (like Queen Wasp charge)
                 yield return DashAttackSequence();
                 yield return new WaitForSeconds(attackCooldown);
 
-                yield return MoveToPlayer();
+                // Movement phase again
+                yield return Movement();
+                
+                // Skill 2: Divine Swords (like Mega Slime sword attack)
                 yield return DivineSwordsAttack();
                 yield return new WaitForSeconds(attackCooldown);
             }
         }
 
-        private IEnumerator MoveToPlayer()
+        private IEnumerator Movement()
         {
             IsMoving = true;
-            yield return new WaitForSeconds(movementDuration);
+
+            // Move to random position near player (like other bosses)
+            var randomPoint = StageController.FieldManager.Fence.GetRandomPointInside(1);
+
+            // Ensure reasonable distance from player
+            while(Vector2.Distance(randomPoint, PlayerBehavior.Player.transform.position) > 4)
+            {
+                randomPoint = StageController.FieldManager.Fence.GetRandomPointInside(1);
+            }
+
+            IsMovingToCustomPoint = true;
+            CustomPoint = randomPoint;
+
+            yield return new WaitUntil(() => Vector2.Distance(transform.position, randomPoint) < 0.2f);
+
+            IsMovingToCustomPoint = false;
             IsMoving = false;
         }
 
@@ -96,6 +117,9 @@ namespace OctoberStudio.Enemy
 
         private IEnumerator PerformDashAttack()
         {
+            // Stop movement during attack
+            IsMoving = false;
+            
             if (animator != null)
                 animator.SetBool(IS_CHARGING_HASH, true);
             
@@ -105,62 +129,91 @@ namespace OctoberStudio.Enemy
             if (chargeEffect != null)
                 chargeEffect.Play();
 
-            Vector2 targetDirection = (PlayerBehavior.Player.transform.position - transform.position).normalized;
-            
-            if (dashWarningSprite != null)
-                dashWarningSprite.transform.rotation = Quaternion.FromToRotation(Vector2.up, targetDirection);
+            // Calculate dash direction like Queen Wasp charge
+            float time = 0;
+            Vector2 movementDirection = Vector2.up;
 
-            float warningTimer = 0f;
-            while (warningTimer < dashWarningDuration)
+            // Warning phase - track player like Queen Wasp
+            while (time < dashWarningDuration)
             {
-                warningTimer += Time.deltaTime;
+                time += Time.deltaTime;
+
+                movementDirection = (PlayerBehavior.Player.transform.position - transform.position).normalized;
                 if (dashWarningSprite != null)
                 {
-                    dashWarningSprite.size = new Vector2(1f, warningTimer / dashWarningDuration * dashDistance);
+                    dashWarningSprite.transform.rotation = Quaternion.FromToRotation(Vector2.up, movementDirection);
+                    dashWarningSprite.size = new Vector2(1f, time / dashWarningDuration * dashDistance);
+                }
+
+                // Update scale direction like other bosses
+                if (!scaleCoroutine.ExistsAndActive())
+                {
+                    var scale = transform.localScale;
+                    if (movementDirection.x > 0 && scale.x < 0 || movementDirection.x < 0 && scale.x > 0)
+                    {
+                        scale.x *= -1;
+                        transform.localScale = scale;
+                    }
                 }
                 yield return null;
             }
+
+            if (dashWarningSprite != null)
+                dashWarningSprite.gameObject.SetActive(false);
 
             if (animator != null)
             {
                 animator.SetBool(IS_CHARGING_HASH, false);
                 animator.SetTrigger(DASH_TRIGGER);
             }
-            
-            if (dashWarningSprite != null)
-                dashWarningSprite.gameObject.SetActive(false);
 
             isDashing = true;
             if (dashTrail != null)
                 dashTrail.Play();
 
-            Vector3 startPosition = transform.position;
-            Vector3 endPosition = startPosition + (Vector3)targetDirection * dashDistance;
+            // Execute dash like Queen Wasp charge
+            time = 0;
+            while (time < dashDistance / dashSpeed)
+            {
+                var newPosition = transform.position.XY() + Time.deltaTime * movementDirection * dashSpeed;
+                
+                // Validate position like Queen Wasp
+                if (StageController.FieldManager.ValidatePosition(newPosition, fenceOffset))
+                {
+                    transform.position = newPosition;
+                }
 
-            yield return transform.DoPosition(endPosition, dashDistance / dashSpeed)
-                .SetEasing(EasingType.ExpoOut)
-                .SetOnFinish(() => {
-                    isDashing = false;
-                    if (dashTrail != null)
-                        dashTrail.Stop();
-                });
+                time += Time.deltaTime;
+                yield return null;
+            }
+
+            isDashing = false;
+            if (dashTrail != null)
+                dashTrail.Stop();
+
+            if (animator != null)
+                animator.SetBool(IS_CHARGING_HASH, false);
 
             OnDashImpact();
         }
 
         private IEnumerator DivineSwordsAttack()
         {
+            // Stop movement during attack like Mega Slime
+            IsMoving = false;
+            
             if (animator != null)
                 animator.SetTrigger(SUMMON_SWORDS_TRIGGER);
             
             if (swordSummonEffect != null)
                 swordSummonEffect.Play();
 
+            // Spawn swords in waves like Mega Slime sword attack
             for (int wave = 0; wave < swordWaves; wave++)
             {
                 for (int sword = 0; sword < swordsPerWave; sword++)
                 {
-                    SpawnDivineSword();
+                    StartCoroutine(SpawnDivineSwordCoroutine());
                     yield return new WaitForSeconds(timeBetweenSwords);
                 }
 
@@ -169,27 +222,43 @@ namespace OctoberStudio.Enemy
             }
         }
 
-        private void SpawnDivineSword()
+        private IEnumerator SpawnDivineSwordCoroutine()
         {
-            if (swordsPool == null) return;
+            // Get random spawn position like Mega Slime
+            var spawnPosition = StageController.FieldManager.Fence.GetRandomPointInside(0.5f);
 
-            Vector2 spawnPosition;
-            if (StageController.FieldManager != null && StageController.FieldManager.Fence != null)
+            // Create warning circle like Mega Slime
+            var warningCircle = StageController.PoolsManager.GetEntity<WarningCircleBehavior>("Warning Circle");
+            warningCircle.transform.position = spawnPosition;
+            warningCircle.Play(1f, 0.3f, 0.8f, null);
+
+            yield return new WaitForSeconds(1.3f);
+
+            // Spawn divine sword
+            if (swordsPool != null)
             {
-                spawnPosition = StageController.FieldManager.Fence.GetRandomPointInside(1f);
+                var sword = swordsPool.GetEntity();
+                sword.transform.position = spawnPosition;
+                sword.Damage = swordDamage * StageController.Stage.EnemyDamage;
+                sword.onFinished += OnSwordFinished;
+                
+                activeSwords.Add(sword);
+                sword.Spawn(2f);
             }
-            else
+
+            // Clean up warning circle
+            warningCircle.gameObject.SetActive(false);
+        }
+
+        public void OnDashImpact()
+        {
+            // Check damage in dash area
+            float damageRadius = 2f;
+            if (PlayerBehavior.Player != null && 
+                Vector2.Distance(transform.position, PlayerBehavior.Player.transform.position) <= damageRadius)
             {
-                spawnPosition = transform.position + (Vector3)Random.insideUnitCircle * 5f;
+                PlayerBehavior.Player.TakeDamage(dashDamage * StageController.Stage.EnemyDamage);
             }
-            
-            var sword = swordsPool.GetEntity();
-            sword.transform.position = spawnPosition;
-            sword.Damage = swordDamage * StageController.Stage.EnemyDamage;
-            sword.onFinished += OnSwordFinished;
-            
-            activeSwords.Add(sword);
-            sword.Spawn(2f);
         }
 
         private void OnSwordFinished(DivineSwordBehavior sword)
@@ -226,16 +295,6 @@ namespace OctoberStudio.Enemy
                 animator.SetTrigger(DEATH_TRIGGER);
 
             base.Die(flash);
-        }
-
-        public void OnDashImpact()
-        {
-            float damageRadius = 2f;
-            if (PlayerBehavior.Player != null && 
-                Vector2.Distance(transform.position, PlayerBehavior.Player.transform.position) <= damageRadius)
-            {
-                PlayerBehavior.Player.TakeDamage(dashDamage * StageController.Stage.EnemyDamage);
-            }
         }
     }
 }
