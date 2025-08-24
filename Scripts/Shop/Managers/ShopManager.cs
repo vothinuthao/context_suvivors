@@ -436,13 +436,7 @@ namespace OctoberStudio.Shop
         /// </summary>
         private bool PurchaseGold(ShopItemModel item)
         {
-            int goldAmount = (int)item.PriceAmount;
-            if (item.ItemType == ShopItemType.Gold)
-            {
-                // The price amount for gold items should represent the gold received, not the gem cost
-                goldAmount = GetGoldAmountFromItem(item);
-            }
-
+            int goldAmount = GetGoldAmountFromItem(item);
             shopSave.AddGold(goldAmount);
 
             var rewards = new List<RewardData>
@@ -585,19 +579,21 @@ namespace OctoberStudio.Shop
         }
 
         /// <summary>
-        /// Get player's current gems
+        /// Get player's current gems - FIXED: Now using CurrencySave
         /// </summary>
         public int GetCurrentGems()
         {
-            return shopSave.totalGems;
+            var gemCurrency = GameController.SaveManager?.GetSave<CurrencySave>("gem");
+            return gemCurrency?.Amount ?? 0;
         }
 
         /// <summary>
-        /// Get player's current gold
+        /// Get player's current gold - FIXED: Now using CurrencySave
         /// </summary>
         public int GetCurrentGold()
         {
-            return GameController.TempGold?.Amount ?? 0;
+            var goldCurrency = GameController.SaveManager?.GetSave<CurrencySave>("gold");
+            return goldCurrency?.Amount ?? 0;
         }
     }
 
