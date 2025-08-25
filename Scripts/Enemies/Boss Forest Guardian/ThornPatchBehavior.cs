@@ -19,9 +19,9 @@ namespace OctoberStudio.Enemy
         [SerializeField] ParticleSystem spawnEffect;
         [SerializeField] ParticleSystem poisonEffect;
 
-        [Header("Settings")]
+        [Header("Settings - FIXED")]
         [SerializeField] float warningDuration = 1.3f;
-        [SerializeField] float poisonTickRate = 1f;
+        [SerializeField] float poisonTickRate = 1f; // FIXED: DoT mỗi giây
 
         public float ContactDamage { get; set; }
         public float PoisonDamage { get; set; }
@@ -33,6 +33,7 @@ namespace OctoberStudio.Enemy
         private Coroutine poisonCoroutine;
         private PlayerBehavior playerInTrigger;
 
+        // FIXED: Thorn patch tồn tại lâu và có poison zone liên tục
         public void Spawn(float lifetime)
         {
             if (thornSprite != null)
@@ -45,21 +46,14 @@ namespace OctoberStudio.Enemy
             isActive = false;
             isHiding = false;
 
+            // FIXED: Sử dụng warning circle như các boss khác
             if (StageController.PoolsManager != null)
             {
-                var warningPool = StageController.PoolsManager.GetPool("Warning Circle");
-                if (warningPool != null)
+                warningCircle = StageController.PoolsManager.GetEntity<WarningCircleBehavior>("Warning Circle");
+                if (warningCircle != null)
                 {
-                    warningCircle = warningPool.GetEntity<WarningCircleBehavior>();
-                    if (warningCircle != null)
-                    {
-                        warningCircle.transform.position = transform.position;
-                        warningCircle.Play(2f, 0.5f, warningDuration - 0.5f, ShowThornPatch);
-                    }
-                    else
-                    {
-                        EasingManager.DoAfter(warningDuration, ShowThornPatch);
-                    }
+                    warningCircle.transform.position = transform.position;
+                    warningCircle.Play(2f, 0.5f, warningDuration - 0.5f, ShowThornPatch);
                 }
                 else
                 {
@@ -71,6 +65,7 @@ namespace OctoberStudio.Enemy
                 EasingManager.DoAfter(warningDuration, ShowThornPatch);
             }
 
+            // FIXED: Lifetime dài hơn nhiều so với Crab spike (8-10s vs 1-2s)
             if (lifetime > 0)
             {
                 EasingManager.DoAfter(lifetime, Hide);
@@ -91,13 +86,13 @@ namespace OctoberStudio.Enemy
             if (animator != null)
             {
                 animator.SetTrigger(SPAWN_TRIGGER);
-                animator.SetBool(IDLE_POISON_HASH, true);
+                animator.SetBool(IDLE_POISON_HASH, true); // FIXED: Poison animation liên tục
             }
             
             if (spawnEffect != null)
                 spawnEffect.Play();
             if (poisonEffect != null)
-                poisonEffect.Play();
+                poisonEffect.Play(); // FIXED: Poison effect liên tục
         }
 
         public void Hide()
@@ -107,6 +102,7 @@ namespace OctoberStudio.Enemy
                 isHiding = true;
                 isActive = false;
                 
+                // FIXED: Stop poison coroutine khi hide
                 if (poisonCoroutine != null)
                 {
                     StopCoroutine(poisonCoroutine);
@@ -155,6 +151,7 @@ namespace OctoberStudio.Enemy
             gameObject.SetActive(false);
         }
 
+        // FIXED: Contact damage + poison DoT system (khác với Crab spike)
         private void OnTriggerEnter2D(Collider2D collision)
         {
             if (!isActive) return;
@@ -164,8 +161,10 @@ namespace OctoberStudio.Enemy
             {
                 playerInTrigger = PlayerBehavior.Player;
                 
+                // FIXED: Contact damage ngay khi vào
                 PlayerBehavior.Player.TakeDamage(ContactDamage);
 
+                // FIXED: Start poison DoT
                 if (poisonCoroutine == null)
                 {
                     poisonCoroutine = StartCoroutine(PoisonDamageCoroutine());
@@ -173,6 +172,7 @@ namespace OctoberStudio.Enemy
             }
         }
 
+        // FIXED: Stop poison khi player thoát khỏi thorn patch
         private void OnTriggerExit2D(Collider2D collision)
         {
             if (!isActive) return;
@@ -190,6 +190,7 @@ namespace OctoberStudio.Enemy
             }
         }
 
+        // FIXED: Poison DoT coroutine - damage liên tục khi ở trong patch
         private IEnumerator PoisonDamageCoroutine()
         {
             while (isActive && playerInTrigger != null)

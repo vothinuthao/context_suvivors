@@ -21,22 +21,23 @@ namespace OctoberStudio.Enemy
         [SerializeField] float floatingBobSpeed = 2f;
         [SerializeField] float floatingBobAmount = 0.3f;
 
-        [Header("Thorn Patches (Skill 1)")]
+        [Header("Thorn Patches (Skill 1) - FIXED")]
         [SerializeField] GameObject thornPatchPrefab;
         [SerializeField] int patchesPerWave = 6;
         [SerializeField] int thornWaves = 2;
         [SerializeField] float timeBetweenPatches = 0.4f;
         [SerializeField] float thornContactDamage = 8f;
         [SerializeField] float thornPoisonDamage = 3f;
-        [SerializeField] float thornDuration = 8f;
+        [SerializeField] float thornDuration = 8f; // FIXED: Lâu hơn nhiều so với Crab spike
 
-        [Header("Seed Barrage (Skill 2)")]
+        [Header("Seed Barrage (Skill 2) - FIXED")]
         [SerializeField] GameObject seedProjectilePrefab;
         [SerializeField] int seedsPerBarrage = 18;
         [SerializeField] int seedBarrages = 3;
         [SerializeField] float seedSpeed = 8f;
         [SerializeField] float seedDamage = 6f;
         [SerializeField] float timeBetweenSeeds = 0.1f;
+        [SerializeField] float timeBetweenBarrages = 0.8f;
 
         [Header("General Behavior")]
         [SerializeField] float movementDuration = 4f;
@@ -127,6 +128,7 @@ namespace OctoberStudio.Enemy
             IsMoving = false;
         }
 
+        // FIXED: Skill 1 - Thorn Patches như docs mô tả, không phải spike như Crab
         private IEnumerator ThornPatchesAttack()
         {
             if (animator != null)
@@ -151,6 +153,7 @@ namespace OctoberStudio.Enemy
                 animator.SetBool(IS_CASTING_THORNS_HASH, false);
         }
 
+        // FIXED: Skill 2 - Seeds bay từ boss ra ngoài, không giống Mega Slime
         private IEnumerator SeedBarrageAttack()
         {
             if (animator != null)
@@ -161,20 +164,22 @@ namespace OctoberStudio.Enemy
 
             for (int barrage = 0; barrage < seedBarrages; barrage++)
             {
+                // FIXED: Launch seeds từ boss position ra random directions
                 for (int seed = 0; seed < seedsPerBarrage; seed++)
                 {
-                    LaunchSeed();
+                    LaunchSeedFromBoss();
                     yield return new WaitForSeconds(timeBetweenSeeds);
                 }
 
                 if (barrage < seedBarrages - 1)
-                    yield return new WaitForSeconds(0.5f);
+                    yield return new WaitForSeconds(timeBetweenBarrages);
             }
 
             if (animator != null)
                 animator.SetBool(IS_CASTING_SEEDS_HASH, false);
         }
 
+        // FIXED: Spawn thorn patch như poison zone, tồn tại lâu
         private void SpawnThornPatch()
         {
             if (thornPatchPool == null) return;
@@ -196,13 +201,17 @@ namespace OctoberStudio.Enemy
             thornPatch.onFinished += OnThornPatchFinished;
             
             activeThornPatches.Add(thornPatch);
+            
+            // FIXED: Thorn patches tồn tại lâu để tạo area denial
             thornPatch.Spawn(thornDuration);
         }
 
-        private void LaunchSeed()
+        // FIXED: Launch seed từ boss ra random direction (không phải spawn từ trên trời)
+        private void LaunchSeedFromBoss()
         {
             if (seedProjectilePool == null) return;
 
+            // FIXED: Seeds bay từ boss position, không phải spawn random
             Vector2 randomDirection = Random.insideUnitCircle.normalized;
             Vector2 launchPosition = (Vector2)transform.position + randomDirection * 0.5f;
 
@@ -212,6 +221,7 @@ namespace OctoberStudio.Enemy
             seed.Speed = seedSpeed;
             seed.onFinished += OnSeedFinished;
             
+            // FIXED: Launch từ boss ra ngoài
             seed.Launch(randomDirection);
         }
 
@@ -272,14 +282,17 @@ namespace OctoberStudio.Enemy
 
         public void OnThornCastingAnimationEvent()
         {
+            // Animation event callback
         }
 
         public void OnSeedCastingAnimationEvent()
         {
+            // Animation event callback
         }
 
         public void OnDeathExplosionAnimationEvent()
         {
+            // FIXED: Death explosion bắn seeds ra mọi hướng từ boss
             for (int i = 0; i < 20; i++)
             {
                 Vector2 randomDirection = Random.insideUnitCircle.normalized;
