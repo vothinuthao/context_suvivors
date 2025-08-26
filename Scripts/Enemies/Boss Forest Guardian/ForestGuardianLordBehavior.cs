@@ -14,15 +14,17 @@ namespace OctoberStudio.Enemy
         private static readonly int IS_FLOATING_HASH = Animator.StringToHash("IsFloating");
         private static readonly int DEATH_EXPLOSION_TRIGGER = Animator.StringToHash("DeathExplosion");
 
-        [Header("Guardian Settings")]
-        [SerializeField] Animator animator;
+        [Header("Guardian Settings")] [SerializeField]
+        Animator animator;
+
         [SerializeField] Transform staffTransform;
         [SerializeField] float floatingHeight = 1.5f;
         [SerializeField] float floatingBobSpeed = 2f;
         [SerializeField] float floatingBobAmount = 0.3f;
 
-        [Header("Thorn Patches (Skill 1) - FIXED")]
-        [SerializeField] GameObject thornPatchPrefab;
+        [Header("Thorn Patches (Skill 1) - FIXED")] [SerializeField]
+        GameObject thornPatchPrefab;
+
         [SerializeField] int patchesPerWave = 6;
         [SerializeField] int thornWaves = 2;
         [SerializeField] float timeBetweenPatches = 0.4f;
@@ -30,21 +32,22 @@ namespace OctoberStudio.Enemy
         [SerializeField] float thornPoisonDamage = 3f;
         [SerializeField] float thornDuration = 8f; // FIXED: Lâu hơn nhiều so với Crab spike
 
-        [Header("Seed Barrage (Skill 2) - FIXED")]
-        [SerializeField] GameObject seedProjectilePrefab;
-        [SerializeField] int seedsPerBarrage = 18;
-        [SerializeField] int seedBarrages = 3;
-        [SerializeField] float seedSpeed = 8f;
-        [SerializeField] float seedDamage = 6f;
-        [SerializeField] float timeBetweenSeeds = 0.1f;
-        [SerializeField] float timeBetweenBarrages = 0.8f;
+        [Header("Seed Barrage (Skill 2) - FIXED")] [SerializeField]
+        GameObject seedProjectilePrefab;
 
-        [Header("General Behavior")]
-        [SerializeField] float movementDuration = 4f;
+        [SerializeField] private int seedsPerBarrage = 12;
+        [SerializeField] int seedBarrages = 3;
+        [SerializeField] float seedSpeed = 8f; 
+        [SerializeField] float seedDamage = 6f; 
+        [SerializeField] float timeBetweenBarrages = 0.8f; 
+        [SerializeField] float timeBetweenSeeds = 0.5f;
+
+        [Header("General Behavior")] [SerializeField]
+        float movementDuration = 4f;
+
         [SerializeField] float attackCooldown = 2f;
 
-        [Header("Effects")]
-        [SerializeField] ParticleSystem thornCastingEffect;
+        [Header("Effects")] [SerializeField] ParticleSystem thornCastingEffect;
         [SerializeField] ParticleSystem seedCastingEffect;
         [SerializeField] ParticleSystem deathExplosionEffect;
         [SerializeField] ParticleSystem ambientNatureEffect;
@@ -64,9 +67,11 @@ namespace OctoberStudio.Enemy
             {
                 thornPatchPool = new PoolComponent<ThornPatchBehavior>(thornPatchPrefab, patchesPerWave * thornWaves);
             }
+
             if (seedProjectilePrefab != null)
             {
-                seedProjectilePool = new PoolComponent<SeedProjectileBehavior>(seedProjectilePrefab, seedsPerBarrage * seedBarrages);
+                seedProjectilePool =
+                    new PoolComponent<SeedProjectileBehavior>(seedProjectilePrefab, seedsPerBarrage * seedBarrages);
             }
         }
 
@@ -75,10 +80,10 @@ namespace OctoberStudio.Enemy
             base.Play();
             originalPosition = transform.position;
             isFloating = true;
-            
+
             if (animator != null)
                 animator.SetBool(IS_FLOATING_HASH, true);
-            
+
             if (ambientNatureEffect != null)
                 ambientNatureEffect.Play();
             if (staffGlowEffect != null)
@@ -102,17 +107,33 @@ namespace OctoberStudio.Enemy
             }
         }
 
+        // FIXED: Override base Update to disable ground movement
+        protected override void Update()
+        {
+            // Don't call base.Update() - we handle our own floating movement
+            if (!IsAlive || !isFloating) return;
+        }
+
         private IEnumerator FloatingMovement()
         {
             while (isFloating && IsAlive)
             {
+                // FIXED: Only handle Y-axis floating bob, not actual movement
                 float bobOffset = Mathf.Sin(Time.time * floatingBobSpeed) * floatingBobAmount;
-                Vector3 targetPosition = new Vector3(transform.position.x, originalPosition.y + floatingHeight + bobOffset, transform.position.z);
-                transform.position = Vector3.Lerp(transform.position, targetPosition, Time.deltaTime * 2f);
+                Vector3 currentPos = transform.position;
+                Vector3 targetBobPosition = new Vector3(currentPos.x, originalPosition.y + floatingHeight + bobOffset,
+                    currentPos.z);
 
-                if (staffTransform != null && IsMoving)
+                // FIXED: Only lerp Y position for floating bob
+                transform.position = new Vector3(currentPos.x,
+                    Mathf.Lerp(currentPos.y, targetBobPosition.y, Time.deltaTime * 3f),
+                    currentPos.z);
+
+                // FIXED: Staff direction always points to player when visible
+                if (staffTransform != null && PlayerBehavior.Player != null)
                 {
-                    Vector2 direction = ((Vector2)PlayerBehavior.Player.transform.position - (Vector2)transform.position).normalized;
+                    Vector2 direction =
+                        ((Vector2)PlayerBehavior.Player.transform.position - (Vector2)transform.position).normalized;
                     float angle = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg;
                     staffTransform.rotation = Quaternion.AngleAxis(angle, Vector3.forward);
                 }
@@ -123,9 +144,45 @@ namespace OctoberStudio.Enemy
 
         private IEnumerator FloatToPosition()
         {
+            // FIXED: Actually move to random position like other bosses
+            Vector2 targetPosition = StageController.FieldManager.Fence.GetRandomPointInside(1.5f);
+
+            // FIXED: Ensure reasonable distance from player
+            int attempts = 0;
+            while (Vector2.Distance(targetPosition, PlayerBehavior.Player.transform.position) < 2f && attempts < 10)
+            {
+                targetPosition = StageController.FieldManager.Fence.GetRandomPointInside(1.5f);
+                attempts++;
+            }
+
             IsMoving = true;
-            yield return new WaitForSeconds(movementDuration);
+
+            // FIXED: Smoothly move to target position over time
+            Vector2 startPosition = transform.position;
+            float elapsed = 0f;
+
+            while (elapsed < movementDuration && IsAlive)
+            {
+                elapsed += Time.deltaTime;
+                float progress = elapsed / movementDuration;
+
+                // FIXED: Smooth movement with easing
+                Vector2 currentXZ = Vector2.Lerp(startPosition, targetPosition, EaseInOutQuad(progress));
+                transform.position = new Vector3(currentXZ.x, transform.position.y, 0);
+
+                yield return null;
+            }
+
             IsMoving = false;
+
+            // FIXED: Update original position for floating reference
+            originalPosition = new Vector3(transform.position.x, originalPosition.y, transform.position.z);
+        }
+
+        // FIXED: Smooth easing function for movement
+        private float EaseInOutQuad(float t)
+        {
+            return t < 0.5f ? 2f * t * t : 1f - Mathf.Pow(-2f * t + 2f, 2f) / 2f;
         }
 
         // FIXED: Skill 1 - Thorn Patches như docs mô tả, không phải spike như Crab
@@ -133,7 +190,7 @@ namespace OctoberStudio.Enemy
         {
             if (animator != null)
                 animator.SetBool(IS_CASTING_THORNS_HASH, true);
-            
+
             if (thornCastingEffect != null)
                 thornCastingEffect.Play();
 
@@ -158,7 +215,7 @@ namespace OctoberStudio.Enemy
         {
             if (animator != null)
                 animator.SetBool(IS_CASTING_SEEDS_HASH, true);
-            
+
             if (seedCastingEffect != null)
                 seedCastingEffect.Play();
 
@@ -199,9 +256,9 @@ namespace OctoberStudio.Enemy
             thornPatch.ContactDamage = thornContactDamage * StageController.Stage.EnemyDamage;
             thornPatch.PoisonDamage = thornPoisonDamage * StageController.Stage.EnemyDamage;
             thornPatch.onFinished += OnThornPatchFinished;
-            
+
             activeThornPatches.Add(thornPatch);
-            
+
             // FIXED: Thorn patches tồn tại lâu để tạo area denial
             thornPatch.Spawn(thornDuration);
         }
@@ -220,7 +277,7 @@ namespace OctoberStudio.Enemy
             seed.Damage = seedDamage * StageController.Stage.EnemyDamage;
             seed.Speed = seedSpeed;
             seed.onFinished += OnSeedFinished;
-            
+
             // FIXED: Launch từ boss ra ngoài
             seed.Launch(randomDirection);
         }
@@ -239,7 +296,7 @@ namespace OctoberStudio.Enemy
         protected override void Die(bool flash)
         {
             isFloating = false;
-            
+
             if (behaviorCoroutine != null)
                 StopCoroutine(behaviorCoroutine);
 
@@ -248,7 +305,7 @@ namespace OctoberStudio.Enemy
 
             if (animator != null)
                 animator.SetTrigger(DEATH_EXPLOSION_TRIGGER);
-            
+
             if (deathExplosionEffect != null)
                 deathExplosionEffect.Play();
 
@@ -277,6 +334,7 @@ namespace OctoberStudio.Enemy
                     activeThornPatches[i].Clear();
                 }
             }
+
             activeThornPatches.Clear();
         }
 
@@ -305,12 +363,10 @@ namespace OctoberStudio.Enemy
             if (seedProjectilePool == null) return;
 
             var leaf = seedProjectilePool.GetEntity();
-            leaf.transform.position = transform.position;
+            leaf.Init(transform.position, direction);
             leaf.Damage = seedDamage * 0.5f * StageController.Stage.EnemyDamage;
-            leaf.Speed = seedSpeed * 1.5f;
+            leaf.Speed = seedSpeed * 1.5f; // Faster death leaves
             leaf.onFinished += OnSeedFinished;
-            
-            leaf.Launch(direction);
         }
     }
 }

@@ -26,8 +26,19 @@ namespace OctoberStudio.Enemy
         {
             Speed = speed;
         }
+        public override void Init(Vector2 position, Vector2 launchDirection)
+        {
+            transform.position = position;
+            direction = launchDirection.normalized;
+            endTime = Time.time + lifetime;
+            isActive = true;
 
-        // FIXED: Launch seed từ boss position theo direction cụ thể
+            if (visualsObject != null)
+                visualsObject.SetActive(true);
+
+            if (trail != null)
+                trail.Clear();
+        }
         public void Launch(Vector2 launchDirection)
         {
             direction = launchDirection.normalized;
@@ -86,11 +97,9 @@ namespace OctoberStudio.Enemy
         {
             isActive = false;
             
-            // FIXED: Play impact effect
             if (impactEffect != null)
                 impactEffect.Play();
 
-            // FIXED: Clear và callback
             Clear();
             onFinished?.Invoke(this);
         }
@@ -98,13 +107,10 @@ namespace OctoberStudio.Enemy
         public void Clear()
         {
             isActive = false;
-            Speed = speed; // FIXED: Reset speed
-            
-            // FIXED: Hide visuals
+            Speed = speed;
             if (visualsObject != null)
                 visualsObject.SetActive(false);
             
-            // FIXED: Clear trail
             if (trail != null) 
                 trail.Clear();
                 

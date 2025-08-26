@@ -10,5 +10,6 @@ namespace OctoberStudio.Bossfight
         Bell = 5,
         CorruptedPaladin = 6,
         ForestGuardianLord = 7,
+        SkeletonKing = 8,
     }
 }
