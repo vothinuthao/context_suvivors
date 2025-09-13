@@ -40,6 +40,18 @@ namespace OctoberStudio
         WoodenWand = 1000,
         SteelSword = 1001,
 
+        // New Starting Abilities (1003-1010 range)
+        FistPunch = 1003,
+        KunaiThrow = 1004, 
+        BowShot = 1005,
+        FireAura = 1006,
+        
+        // Staff Magic Variants
+        StaffEarth = 1007,
+        StaffWater = 1008,
+        StaffFire = 1009,
+        StaffLightning = 1010,
+
         AncientScepter = 1100,
         SacredBlade = 1101,
 
