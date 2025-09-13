@@ -132,7 +132,6 @@ namespace OctoberStudio.Shop
 
         [SerializeField] public PurchaseRecord[] purchaseRecords = new PurchaseRecord[0];
         [SerializeField] public GachaPityRecord[] gachaPityRecords = new GachaPityRecord[0];
-        [SerializeField] public int totalGems;
         [SerializeField] public DateTime lastShopRefreshTime;
         [SerializeField] public string lastShopRefreshTimeString;
 
@@ -258,7 +257,6 @@ namespace OctoberStudio.Shop
 
             purchaseRecords = new PurchaseRecord[0];
             gachaPityRecords = new GachaPityRecord[0];
-            totalGems = 0;
             lastShopRefreshTime = DateTime.Now;
             lastShopRefreshTimeString = lastShopRefreshTime.ToBinary().ToString();
         }
@@ -356,18 +354,22 @@ namespace OctoberStudio.Shop
             }
         }
 
-        // Currency methods
+        // Currency methods - FIXED: Now using CurrencySave system
         public bool CanAfford(ShopItemModel item)
         {
             switch (item.PriceType)
             {
                 case PriceType.gold:
-                    return GameController.TempGold != null && 
-                           GameController.TempGold.Amount >= item.PriceAmount;
+                    var goldCurrency = GameController.SaveManager?.GetSave<CurrencySave>("gold");
+                    return goldCurrency != null && goldCurrency.Amount >= item.PriceAmount;
+                
                 case PriceType.gem:
-                    return totalGems >= item.PriceAmount;
+                    var gemCurrency = GameController.SaveManager?.GetSave<CurrencySave>("gem");
+                    return gemCurrency != null && gemCurrency.Amount >= item.PriceAmount;
+                
                 case PriceType.usd:
                     return true; // Real money purchases are handled by platform
+                
                 default:
                     return false;
             }
@@ -380,14 +382,27 @@ namespace OctoberStudio.Shop
             switch (item.PriceType)
             {
                 case PriceType.gold:
-                    GameController.TempGold?.Withdraw((int)item.PriceAmount);
-                    return true;
+                    var goldCurrency = GameController.SaveManager?.GetSave<CurrencySave>("gold");
+                    if (goldCurrency != null)
+                    {
+                        goldCurrency.Withdraw((int)item.PriceAmount);
+                        return true;
+                    }
+                    return false;
+                
                 case PriceType.gem:
-                    totalGems -= (int)item.PriceAmount;
-                    return true;
+                    var gemCurrency = GameController.SaveManager?.GetSave<CurrencySave>("gem");
+                    if (gemCurrency != null)
+                    {
+                        gemCurrency.Withdraw((int)item.PriceAmount);
+                        return true;
+                    }
+                    return false;
+                
                 case PriceType.usd:
                     // Real money purchases handled by platform
                     return true;
+                
                 default:
                     return false;
             }
@@ -395,13 +410,14 @@ namespace OctoberStudio.Shop
 
         public void AddGems(int amount)
         {
-            totalGems += amount;
-            if (totalGems < 0) totalGems = 0;
+            var gemCurrency = GameController.SaveManager?.GetSave<CurrencySave>("gem");
+            gemCurrency?.Deposit(amount);
         }
 
         public void AddGold(int amount)
         {
-            GameController.TempGold?.Deposit(amount);
+            var goldCurrency = GameController.SaveManager?.GetSave<CurrencySave>("gold");
+            goldCurrency?.Deposit(amount);
         }
 
         // Shop refresh methods
@@ -423,7 +439,13 @@ namespace OctoberStudio.Shop
             var stats = new Dictionary<string, object>();
             
             stats["TotalPurchases"] = PurchaseList.Sum(r => r.purchaseCount);
-            stats["TotalGems"] = totalGems;
+            
+            // Get current currency amounts using CurrencySave
+            var goldCurrency = GameController.SaveManager?.GetSave<CurrencySave>("gold");
+            var gemCurrency = GameController.SaveManager?.GetSave<CurrencySave>("gem");
+            
+            stats["TotalGold"] = goldCurrency?.Amount ?? 0;
+            stats["TotalGems"] = gemCurrency?.Amount ?? 0;
             stats["TotalGachaPulls"] = GachaPityList.Sum(r => r.totalPulls);
             stats["UniqueItemsPurchased"] = PurchaseList.Count(r => r.purchaseCount > 0);
             

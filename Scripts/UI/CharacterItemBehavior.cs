@@ -15,7 +15,7 @@ namespace OctoberStudio.UI
 
         [Header("Info")]
         [SerializeField] Image iconImage;
-        [SerializeField] TMP_Text titleLabel;
+        [SerializeField] TextMeshProUGUI titleLabel;
         [SerializeField] GameObject startingAbilityObject;
         [SerializeField] Image startingAbilityImage;
 
@@ -26,12 +26,12 @@ namespace OctoberStudio.UI
         [SerializeField] Sprite selectedButtonSprite;
 
         [Header("Stats")]
-        [SerializeField] TMP_Text hpText;
-        [SerializeField] TMP_Text damageText;
+        [SerializeField] TextMeshProUGUI hpText;
+        [SerializeField] TextMeshProUGUI damageText;
 
         [Space]
         [SerializeField] ScalingLabelBehavior costLabel;
-        [SerializeField] TMP_Text buttonText;
+        [SerializeField] TextMeshProUGUI buttonText;
 
         public CurrencySave GoldCurrency { get; private set; }
         private CharactersSave charactersSave;

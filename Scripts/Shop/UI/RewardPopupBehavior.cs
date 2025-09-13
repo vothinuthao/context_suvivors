@@ -11,34 +11,36 @@ namespace OctoberStudio.Shop.UI
 {
     public class RewardPopupBehavior : MonoBehaviour
     {
-        [Header("Popup Container")]
-        [SerializeField] private CanvasGroup popupCanvasGroup;
+        [Header("Popup Container")] [SerializeField]
+        private CanvasGroup popupCanvasGroup;
+
         [SerializeField] private RectTransform popupContainer;
         [SerializeField] private Image backgroundImage;
 
-        [Header("Title")]
-        [SerializeField] private TMP_Text titleText;
+        [Header("Title")] [SerializeField] private TMP_Text titleText;
         [SerializeField] private Image titleIcon;
 
-        [Header("Reward Items")]
-        [SerializeField] private GameObject rewardItemPrefab;
+        [Header("Reward Items")] [SerializeField]
+        private GameObject rewardItemPrefab;
+
         [SerializeField] private RectTransform rewardItemsParent;
         [SerializeField] private GridLayoutGroup rewardItemsGrid;
 
-        [Header("Continue Button")]
-        [SerializeField] private GameObject continuePanel;
+        [Header("Continue Button")] [SerializeField]
+        private GameObject continuePanel;
+
         [SerializeField] private TMP_Text continueText;
         [SerializeField] private Button continueButton;
 
-        [Header("Animation Settings")]
-        [SerializeField] private float popupAnimationDuration = 0.3f;
+        [Header("Animation Settings")] [SerializeField]
+        private float popupAnimationDuration = 0.3f;
+
         [SerializeField] private float itemRevealDelay = 0.1f;
         [SerializeField] private float itemAnimationDuration = 0.5f;
         [SerializeField] private EasingType popupEasing = EasingType.ElasticIn;
         [SerializeField] private EasingType itemEasing = EasingType.BounceOut;
 
-        [Header("Audio")]
-        [SerializeField] private string popupOpenSound = "Popup_Open";
+        [Header("Audio")] [SerializeField] private string popupOpenSound = "Popup_Open";
         [SerializeField] private string itemRevealSound = "Item_Reveal";
         [SerializeField] private string epicItemSound = "Epic_Item";
         [SerializeField] private string legendaryItemSound = "Legendary_Item";
@@ -69,7 +71,7 @@ namespace OctoberStudio.Shop.UI
         public void ShowRewards(List<RewardData> rewards, string popupTitle = "Rewards!")
         {
             if (isShowing) return;
-
+            gameObject.SetActive(true);
             StartCoroutine(ShowRewardsCoroutine(rewards, popupTitle));
         }
 
@@ -87,7 +89,7 @@ namespace OctoberStudio.Shop.UI
         private IEnumerator ShowRewardsCoroutine(List<RewardData> rewards, string popupTitle)
         {
             isShowing = true;
-            gameObject.SetActive(true);
+            // gameObject.SetActive(true);
 
             // Setup popup
             SetupPopup(popupTitle, rewards);
@@ -103,7 +105,7 @@ namespace OctoberStudio.Shop.UI
             // Animate popup appearance
             var popupTween = popupContainer.DoLocalScale(Vector3.one, popupAnimationDuration)
                 .SetEasing(popupEasing);
-            
+
             popupCanvasGroup.DoAlpha(1f, popupAnimationDuration);
 
             yield return new WaitForSecondsRealtime(popupAnimationDuration);
@@ -180,6 +182,7 @@ namespace OctoberStudio.Shop.UI
                     Destroy(item.gameObject);
                 }
             }
+
             rewardItemBehaviors.Clear();
         }
 
@@ -192,7 +195,7 @@ namespace OctoberStudio.Shop.UI
             {
                 var rewardObj = Instantiate(rewardItemPrefab, rewardItemsParent);
                 var rewardBehavior = rewardObj.GetComponent<RewardItemBehavior>();
-                
+
                 if (rewardBehavior != null)
                 {
                     rewardBehavior.Setup(rewards[i]);
@@ -236,25 +239,24 @@ namespace OctoberStudio.Shop.UI
             {
                 var rewardBehavior = rewardItemBehaviors[i];
                 var reward = rewards[i];
-                
+
                 // Show item
                 rewardBehavior.gameObject.SetActive(true);
-                
+
                 // Start with scale 0
                 rewardBehavior.transform.localScale = Vector3.zero;
-                
+
                 // Play appropriate sound
                 string soundName = GetRewardSound(reward);
                 PlaySound(soundName);
-                
+
                 // Animate scale up
                 float scaleMultiplier = GetRarityScaleMultiplier(reward.Rarity);
                 Vector3 targetScale = Vector3.one * scaleMultiplier;
-                
+
                 rewardBehavior.transform.DoLocalScale(targetScale, itemAnimationDuration)
                     .SetEasing(itemEasing);
 
-                // Flash background for epic+ items
                 if (reward.Rarity >= EquipmentRarity.Epic)
                 {
                     rewardBehavior.FlashBackground(GetRarityColor(reward.Rarity));
@@ -282,6 +284,7 @@ namespace OctoberStudio.Shop.UI
                     _ => itemRevealSound
                 };
             }
+
             return itemRevealSound;
         }
 
@@ -323,7 +326,7 @@ namespace OctoberStudio.Shop.UI
                 {
                     button = backgroundImage.gameObject.AddComponent<Button>();
                 }
-                
+
                 button.onClick.RemoveAllListeners();
                 button.onClick.AddListener(OnContinueClicked);
             }
@@ -363,7 +366,7 @@ namespace OctoberStudio.Shop.UI
             // Clean up
             isShowing = false;
             gameObject.SetActive(false);
-            
+
             // Trigger event
             OnPopupClosed?.Invoke();
         }
@@ -411,121 +414,4 @@ namespace OctoberStudio.Shop.UI
         }
     }
 
-    /// <summary>
-    /// Individual reward item behavior
-    /// </summary>
-    public class RewardItemBehavior : MonoBehaviour
-    {
-        [Header("UI References")]
-        [SerializeField] private Image itemIcon;
-        [SerializeField] private Image rarityBorder;
-        [SerializeField] private Image backgroundFlash;
-        [SerializeField] private TMP_Text quantityText;
-        [SerializeField] private TMP_Text nameText;
-        [SerializeField] private GameObject newBadge;
-
-        /// <summary>
-        /// Setup reward item display
-        /// </summary>
-        public void Setup(RewardData reward)
-        {
-            // Set icon
-            if (itemIcon != null)
-            {
-                itemIcon.sprite = GetRewardIcon(reward);
-            }
-
-            // Set rarity border
-            if (rarityBorder != null)
-            {
-                rarityBorder.color = GetRarityColor(reward.Rarity);
-            }
-
-            // Set quantity
-            if (quantityText != null)
-            {
-                if (reward.Quantity > 1 || reward.Type == RewardType.Gold || reward.Type == RewardType.Gems)
-                {
-                    quantityText.text = reward.Quantity.ToString();
-                    quantityText.gameObject.SetActive(true);
-                }
-                else
-                {
-                    quantityText.gameObject.SetActive(false);
-                }
-            }
-
-            // Set name
-            if (nameText != null)
-            {
-                nameText.text = reward.DisplayName;
-            }
-
-            // Show new badge for equipment
-            if (newBadge != null)
-            {
-                newBadge.SetActive(reward.Type == RewardType.Equipment);
-            }
-
-            // Setup background flash
-            if (backgroundFlash != null)
-            {
-                backgroundFlash.gameObject.SetActive(false);
-            }
-        }
-
-        /// <summary>
-        /// Get icon for reward
-        /// </summary>
-        private Sprite GetRewardIcon(RewardData reward)
-        {
-            if (DataLoadingManager.Instance == null) return null;
-
-            switch (reward.Type)
-            {
-                case RewardType.Gold:
-                    return DataLoadingManager.Instance.LoadSprite("Currency", "icon_gold");
-                case RewardType.Gems:
-                    return DataLoadingManager.Instance.LoadSprite("Currency", "icon_gem");
-                case RewardType.Equipment:
-                    return reward.EquipmentData?.GetIcon();
-                case RewardType.Character:
-                    return DataLoadingManager.Instance.LoadSprite("Characters", "icon_character");
-                default:
-                    return null;
-            }
-        }
-
-        /// <summary>
-        /// Get color for rarity
-        /// </summary>
-        private Color GetRarityColor(EquipmentRarity rarity)
-        {
-            return rarity switch
-            {
-                EquipmentRarity.Common => Color.white,
-                EquipmentRarity.Uncommon => Color.green,
-                EquipmentRarity.Rare => Color.blue,
-                EquipmentRarity.Epic => Color.magenta,
-                EquipmentRarity.Legendary => Color.yellow,
-                _ => Color.white
-            };
-        }
-
-        /// <summary>
-        /// Flash background with color
-        /// </summary>
-        public void FlashBackground(Color flashColor)
-        {
-            if (backgroundFlash == null) return;
-
-            backgroundFlash.color = flashColor;
-            backgroundFlash.gameObject.SetActive(true);
-            
-            // Fade out flash
-            backgroundFlash.DoAlpha(0f, 1f).SetOnFinish(() => {
-                backgroundFlash.gameObject.SetActive(false);
-            });
-        }
-    }
 }

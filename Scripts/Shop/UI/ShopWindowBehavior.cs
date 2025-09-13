@@ -6,6 +6,7 @@ using OctoberStudio.Input;
 using OctoberStudio.Extensions;
 using OctoberStudio.Shop;
 using OctoberStudio.Shop.UI;
+using OctoberStudio.Save;
 using TMPro;
 using UnityEngine;
 using UnityEngine.Events;
@@ -54,6 +55,10 @@ namespace OctoberStudio.UI
         private List<ShopItemBehavior> allShopItems = new List<ShopItemBehavior>();
         private bool isShopReady = false;
 
+        // Currency references - FIXED: Now using CurrencySave
+        private CurrencySave goldCurrency;
+        private CurrencySave gemCurrency;
+
         // Events
         public event UnityAction OnBackPressed;
 
@@ -64,6 +69,9 @@ namespace OctoberStudio.UI
 
         private void Start()
         {
+            // Initialize currency references - FIXED: Using CurrencySave system
+            InitializeCurrencies();
+
             // Subscribe to shop manager events
             if (ShopManager.Instance != null)
             {
@@ -87,6 +95,35 @@ namespace OctoberStudio.UI
             }
         }
 
+        /// <summary>
+        /// Initialize currency references and subscribe to events - FIXED
+        /// </summary>
+        private void InitializeCurrencies()
+        {
+            if (GameController.SaveManager != null)
+            {
+                goldCurrency = GameController.SaveManager.GetSave<CurrencySave>("gold");
+                gemCurrency = GameController.SaveManager.GetSave<CurrencySave>("gem");
+
+                // Subscribe to currency change events
+                if (goldCurrency != null)
+                {
+                    goldCurrency.onGoldAmountChanged += OnGoldAmountChanged;
+                }
+
+                if (gemCurrency != null)
+                {
+                    gemCurrency.onGoldAmountChanged += OnGemAmountChanged;
+                }
+
+                LogDebug("Currency references initialized");
+            }
+            else
+            {
+                LogDebug("SaveManager not available, currencies will be initialized later");
+            }
+        }
+
         public void Init( )
         {
         }
@@ -94,6 +131,12 @@ namespace OctoberStudio.UI
         public void Open()
         {
             gameObject.SetActive(true);
+
+            // Ensure currencies are initialized
+            if (goldCurrency == null || gemCurrency == null)
+            {
+                InitializeCurrencies();
+            }
 
             // Initialize shop if database is ready
             if (ShopDatabase.Instance != null && ShopDatabase.Instance.IsDataLoaded)
@@ -335,19 +378,19 @@ namespace OctoberStudio.UI
         }
 
         /// <summary>
-        /// Update currency display
+        /// Update currency display - FIXED: Now using CurrencySave
         /// </summary>
         private void UpdateCurrencyDisplay()
         {
             if (coinsLabel != null)
             {
-                int currentCoins = ShopManager.Instance?.GetCurrentGold() ?? 0;
+                int currentCoins = goldCurrency?.Amount ?? 0;
                 coinsLabel.SetAmount(currentCoins);
             }
 
             if (gemsLabel != null)
             {
-                int currentGems = ShopManager.Instance?.GetCurrentGems() ?? 0;
+                int currentGems = gemCurrency?.Amount ?? 0;
                 gemsLabel.SetAmount(currentGems);
             }
         }
@@ -447,6 +490,25 @@ namespace OctoberStudio.UI
             UpdateCurrencyDisplay();
         }
 
+        // Currency change event handlers - FIXED: Added for real-time updates
+        private void OnGoldAmountChanged(int newAmount)
+        {
+            if (coinsLabel != null)
+            {
+                coinsLabel.SetAmount(newAmount);
+            }
+            LogDebug($"Gold amount updated: {newAmount}");
+        }
+
+        private void OnGemAmountChanged(int newAmount)
+        {
+            if (gemsLabel != null)
+            {
+                gemsLabel.SetAmount(newAmount);
+            }
+            LogDebug($"Gem amount updated: {newAmount}");
+        }
+
         private void OnBackButtonClicked()
         {
             GameController.AudioManager?.PlaySound(AudioManager.BUTTON_CLICK_HASH);
@@ -521,6 +583,17 @@ namespace OctoberStudio.UI
 
         private void OnDestroy()
         {
+            // Unsubscribe from currency events - FIXED: Added cleanup
+            if (goldCurrency != null)
+            {
+                goldCurrency.onGoldAmountChanged -= OnGoldAmountChanged;
+            }
+
+            if (gemCurrency != null)
+            {
+                gemCurrency.onGoldAmountChanged -= OnGemAmountChanged;
+            }
+
             // Unsubscribe from all events
             if (ShopManager.Instance != null)
             {
@@ -578,5 +651,15 @@ namespace OctoberStudio.UI
         /// Manually trigger currency update
         /// </summary>
         public void UpdateCurrency() => UpdateCurrencyDisplay();
+
+        /// <summary>
+        /// Get current gold amount - FIXED: Using CurrencySave
+        /// </summary>
+        public int GetCurrentGold() => goldCurrency?.Amount ?? 0;
+
+        /// <summary>
+        /// Get current gem amount - FIXED: Using CurrencySave
+        /// </summary>
+        public int GetCurrentGems() => gemCurrency?.Amount ?? 0;
     }
 }
