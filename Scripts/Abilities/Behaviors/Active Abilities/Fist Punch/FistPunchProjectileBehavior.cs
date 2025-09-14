@@ -21,9 +21,9 @@ namespace OctoberStudio.Abilities
         {
             Init(transform.position, direction);
 
-            transform.localScale = Vector3.one * Size * PlayerBehavior.Player.SizeMultiplier;
+            transform.localScale = Vector3.one * (Size * PlayerBehavior.Player.SizeMultiplier);
 
-            var targetPosition = transform.position + direction * PunchRange * PlayerBehavior.Player.SizeMultiplier;
+            var targetPosition = transform.position + direction * (PunchRange * PlayerBehavior.Player.SizeMultiplier);
             movementCoroutine = transform.DoPosition(targetPosition, ProjectileLifetime / PlayerBehavior.Player.ProjectileSpeedMultiplier).SetOnFinish(() =>
             {
                 gameObject.SetActive(false);

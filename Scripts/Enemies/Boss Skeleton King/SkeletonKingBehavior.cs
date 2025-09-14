@@ -29,10 +29,12 @@ namespace OctoberStudio.Enemy
         [SerializeField] float movingDuration = 4f;
         [Tooltip("Time between different attack phases")]
         [SerializeField] float attackCooldown = 3f;
+        [Tooltip("Minimum distance to maintain from player")]
+        [SerializeField] float minDistanceFromPlayer = 3f;
 
         [Header("Skeleton Summoning")]
         [Tooltip("The type of skeleton minion that will be spawned")]
-        [SerializeField] EnemyType skeletonMinionType = EnemyType.Pumpkin; // Placeholder, will need SkeletonMinion type
+        [SerializeField] EnemyType skeletonMinionType = EnemyType.Bat; // Placeholder, will need SkeletonMinion type
         [Tooltip("The number of skeletons summoned per wave")]
         [SerializeField] int skeletonsPerSummon = 4;
         [Tooltip("The time the warning circle is active before skeleton spawns")]
@@ -70,24 +72,53 @@ namespace OctoberStudio.Enemy
         {
             while(true)
             {
-                // Phase 1: Move toward player
-                IsMoving = true;
-                yield return new WaitForSeconds(movingDuration);
+                // Phase 1: Move toward player (with proper distance control)
+                yield return StartCoroutine(MoveTowardsPlayer());
 
                 // Phase 2: Skeleton Summoning (like MegaSlime spawning)
                 IsMoving = false;
                 yield return StartCoroutine(SkeletonSummonCoroutine());
                 yield return new WaitForSeconds(attackCooldown);
 
-                // Phase 3: Move to new position
-                IsMoving = true;
-                yield return new WaitForSeconds(movingDuration);
+                // Phase 3: Move to new position (avoid sticking)
+                yield return StartCoroutine(MoveTowardsPlayer());
 
                 // Phase 4: Arc Slash Attack
                 IsMoving = false;
                 yield return StartCoroutine(ArcSlashAttackCoroutine());
                 yield return new WaitForSeconds(attackCooldown);
             }
+        }
+
+        // FIXED: Smart movement that avoids sticking to player
+        private IEnumerator MoveTowardsPlayer()
+        {
+            IsMoving = true;
+            
+            float elapsedTime = 0f;
+            
+            while (elapsedTime < movingDuration)
+            {
+                if (PlayerBehavior.Player != null)
+                {
+                    float distanceToPlayer = Vector2.Distance(transform.position, PlayerBehavior.Player.transform.position);
+                    
+                    // FIXED: Stop moving if too close to player
+                    if (distanceToPlayer <= minDistanceFromPlayer)
+                    {
+                        IsMoving = false;
+                        break; // Stop movement phase early if close enough
+                    }
+                    
+                    // Continue normal movement toward player if far away
+                    IsMoving = true;
+                }
+                
+                elapsedTime += Time.deltaTime;
+                yield return null;
+            }
+            
+            IsMoving = false;
         }
 
         private IEnumerator SkeletonSummonCoroutine()
@@ -181,6 +212,24 @@ namespace OctoberStudio.Enemy
             }
 
             slashingParticle.Stop();
+        }
+
+        // FIXED: Override Update to prevent base movement when close to player
+        protected override void Update()
+        {
+            if (!IsAlive || !IsMoving || PlayerBehavior.Player == null) return;
+
+            float distanceToPlayer = Vector2.Distance(transform.position, PlayerBehavior.Player.transform.position);
+            
+            // FIXED: Stop base movement if too close to player
+            if (distanceToPlayer <= minDistanceFromPlayer)
+            {
+                IsMoving = false;
+                return;
+            }
+            
+            // Call base movement only if not too close
+            base.Update();
         }
 
         private void OnSlashFinished(ArcSlashProjectileBehavior slash)
