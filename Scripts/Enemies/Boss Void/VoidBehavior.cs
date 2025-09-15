@@ -155,7 +155,7 @@ namespace OctoberStudio.Enemy
 
                     var blackHole = blackHoles[i % blackHoles.Count];
 
-                    var shade = StageController.EnemiesSpawner.Spawn(EnemyType.Shade, blackHole.transform.position, OnShadeDied);
+                    var shade = StageController.EnemiesSpawner.Spawn(EnemyType.Ghost, blackHole.transform.position, OnShadeDied);
                     shades.Add(shade);
                 }
 

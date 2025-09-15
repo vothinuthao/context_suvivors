@@ -132,7 +132,10 @@ namespace Talents.UI
         {
             if (nodeIcon == null) return;
 
-            StartCoroutine(LoadIconCoroutine(talent));
+            if (gameObject.activeInHierarchy)
+            {
+                StartCoroutine(LoadIconCoroutine(talent));
+            }
         }
 
         /// <summary>
