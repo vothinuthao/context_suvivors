@@ -1,6 +1,8 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using DG.Tweening;
+using OctoberStudio.User;
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
@@ -8,19 +10,16 @@ using UnityEngine.Events;
 using Talents.Data;
 using Talents.Manager;
 using Talents.Config;
+using UnityEngine.Rendering;
 
 namespace Talents.UI
 {
-    /// <summary>
-    /// Talent window with proper zone hierarchy and bottom-up spawning
-    /// Structure: Zone contains ZoneLabel + all nodes of that level (Normal + Special)
-    /// </summary>
     public class TalentWindowBehavior : MonoBehaviour
     {
         [Header("UI References")]
-        [SerializeField] private TMP_Text goldCoinsText;
-        [SerializeField] private TMP_Text orcText;
-        [SerializeField] private TMP_Text titleText;
+        [SerializeField] private TextMeshProUGUI goldCoinsText;
+        [SerializeField] private TextMeshProUGUI orcText;
+        [SerializeField] private TextMeshProUGUI titleText;
 
         [Header("Talent Tree")]
         [SerializeField] private ScrollRect talentScrollRect;
@@ -30,16 +29,22 @@ namespace Talents.UI
 
         [Header("Line Rendering")]
         [SerializeField] private GameObject connectionLinePrefab;
+        [SerializeField] private GameObject specialConnectionLinePrefab; // Special connection line for Special nodes
         [SerializeField] private Transform connectionLineParent;
+
+        [Header("Level Progress Line")]
+        [SerializeField] private GameObject levelLinePrefab; // Prefab that moves to current level zone
+        [SerializeField] private Talents.Background.WaveBackgroundController waveBackgroundController; // Wave background that rises to current progress
 
         [Header("Tooltip")]
         [SerializeField] private GameObject tooltipPanel;
-        [SerializeField] private TMP_Text tooltipText;
+        [SerializeField] private TextMeshProUGUI tooltipText;
         [SerializeField] private RectTransform tooltipRectTransform;
+        [SerializeField] private Button btnCloseTooltips;
 
         [Header("Confirmation Dialog")]
         [SerializeField] private GameObject confirmationPanel;
-        [SerializeField] private TMP_Text confirmationText;
+        [SerializeField] private TextMeshProUGUI confirmationText;
         [SerializeField] private Button confirmButton;
         [SerializeField] private Button cancelButton;
 
@@ -52,7 +57,6 @@ namespace Talents.UI
         private List<TalentNodeBehavior> activeNodes = new List<TalentNodeBehavior>();
         private List<GameObject> connectionLines = new List<GameObject>();
         
-        // Zone management - proper hierarchy
         private Dictionary<int, Transform> zoneContainers = new Dictionary<int, Transform>();
         private Dictionary<int, GameObject> zoneLabels = new Dictionary<int, GameObject>();
 
@@ -62,6 +66,9 @@ namespace Talents.UI
         // State
         private bool _isInitialized = false;
         private System.Action confirmationCallback;
+
+        // Level Line Instance
+        private GameObject currentLevelLineInstance;
 
         // Events
         public UnityEvent OnTalentTreeUpdated;
@@ -82,7 +89,7 @@ namespace Talents.UI
             SetupConnectionLineParent();
             SubscribeToEvents();
             HideUIElements();
-
+            btnCloseTooltips.onClick.AddListener(HideUIElements);
             _isInitialized = true;
         }
 
@@ -128,10 +135,268 @@ namespace Talents.UI
                 var lineParentObj = new GameObject("ConnectionLines");
                 lineParentObj.transform.SetParent(talentTreeContent, false);
                 connectionLineParent = lineParentObj.transform;
-                
+
                 // Set to render behind nodes
                 connectionLineParent.SetAsFirstSibling();
             }
+        }
+
+        /// <summary>
+        /// Setup level line and wave background for current progress indication
+        /// </summary>
+        private void SetupLevelLine()
+        {
+            // Setup WaveBackgroundController in TalentTreeContent if assigned
+            SetupWaveBackgroundInContent();
+
+            // Initial update for both systems
+            UpdateLevelLinePosition();
+        }
+
+        /// <summary>
+        /// Setup wave background controller in talent tree content
+        /// </summary>
+        private void SetupWaveBackgroundInContent()
+        {
+            if (waveBackgroundController == null) return;
+
+            // Move WaveBackgroundController to TalentTreeContent for proper positioning
+            var waveTransform = waveBackgroundController.transform;
+            if (waveTransform.parent != talentTreeContent)
+            {
+                waveTransform.SetParent(talentTreeContent, false);
+
+                // Set wave background to render behind everything
+                waveTransform.SetAsFirstSibling();
+
+                // Setup positioning within content
+                var waveRect = waveTransform.GetComponent<RectTransform>();
+                if (waveRect != null)
+                {
+                    // Position at bottom of content, full width
+                    waveRect.anchorMin = new Vector2(0f, 0f);
+                    waveRect.anchorMax = new Vector2(1f, 0f);
+                    waveRect.pivot = new Vector2(0.5f, 0f);
+                    waveRect.anchoredPosition = Vector2.zero;
+                    waveRect.sizeDelta = new Vector2(0f, 0f); // Auto width, height will be controlled by WaveBackgroundController
+                }
+            }
+        }
+
+        /// <summary>
+        /// Update level line position based on current player level
+        /// </summary>
+        private void UpdateLevelLinePosition()
+        {
+            if (TalentManager.Instance == null) return;
+
+            int currentPlayerLevel = GetCurrentPlayerLevel();
+
+            MoveLevelLineToPrefabPosition(currentPlayerLevel);
+            UpdateWaveBackgroundToCurrentProgress();
+        }
+
+        /// <summary>
+        /// Get current player level from game system
+        /// </summary>
+        private int GetCurrentPlayerLevel()
+        {
+            if (UserProfileManager.Instance != null && UserProfileManager.Instance.IsDataReady)
+            {
+                return UserProfileManager.Instance.ProfileSave.UserLevel;
+            }
+
+            return 1;
+        }
+
+        /// <summary>
+        /// Move level line prefab to position of target level zone
+        /// </summary>
+        private void MoveLevelLineToPrefabPosition(int targetLevel)
+        {
+            if (levelLinePrefab == null) return;
+
+            // Validate target level exists in zone containers
+            if (!zoneContainers.ContainsKey(targetLevel))
+            {
+                var availableZones = zoneContainers.Keys.OrderBy(z => Mathf.Abs(z - targetLevel));
+                int closestZone = availableZones.FirstOrDefault();
+
+                if (closestZone != 0)
+                {
+                    targetLevel = closestZone;
+                }
+                else
+                {
+                    return;
+                }
+            }
+
+            // Create instance if it doesn't exist
+            if (currentLevelLineInstance == null)
+            {
+                currentLevelLineInstance = Instantiate(levelLinePrefab, talentTreeContent);
+
+                // Set render order (above wave background, below nodes)
+                var siblingIndex = talentTreeContent.childCount > 1 ? 1 : 0;
+                currentLevelLineInstance.transform.SetSiblingIndex(siblingIndex);
+            }
+
+            // Calculate position for target level zone
+            Vector2 targetPosition = CalculateZonePosition(targetLevel);
+
+            // Move levelLine to target position with animation
+            var levelLineRect = currentLevelLineInstance.GetComponent<RectTransform>();
+            if (levelLineRect != null)
+            {
+                levelLineRect.DOAnchorPos(targetPosition, 1.0f)
+                    .SetEase(DG.Tweening.Ease.OutQuart);
+            }
+        }
+
+        /// <summary>
+        /// Move Level Line to Zone_2 and position at first node (node 1)
+        /// </summary>
+        public void MoveLevelLineToZone2FirstNode()
+        {
+            const int zone2Level = 2;
+
+            if (levelLinePrefab == null)
+            {
+                Debug.LogWarning("[TalentWindow] Level Line prefab is not assigned");
+                return;
+            }
+
+            // Validate Zone_2 exists
+            if (!zoneContainers.ContainsKey(zone2Level))
+            {
+                Debug.LogWarning("[TalentWindow] Zone_2 (level 2) does not exist in zone containers");
+                return;
+            }
+
+            // Get first node in Zone_2 (should be ATK based on GetNodeOrder method)
+            var zone2Talents = TalentDatabase.Instance.GetNormalTalentsInZone(zone2Level);
+            var firstNode = zone2Talents.OrderBy(t => GetNodeOrder(t)).FirstOrDefault();
+
+            if (firstNode == null)
+            {
+                Debug.LogWarning("[TalentWindow] No normal talents found in Zone_2");
+                return;
+            }
+
+            // Create level line instance if it doesn't exist
+            if (currentLevelLineInstance == null)
+            {
+                currentLevelLineInstance = Instantiate(levelLinePrefab, talentTreeContent);
+
+                // Set render order (above wave background, below nodes)
+                var siblingIndex = talentTreeContent.childCount > 1 ? 1 : 0;
+                currentLevelLineInstance.transform.SetSiblingIndex(siblingIndex);
+            }
+
+            // Calculate position for first node in Zone_2
+            Vector2 targetPosition = CalculateFirstNodePositionInZone(zone2Level, firstNode);
+
+            // Move level line to target position with animation
+            var levelLineRect = currentLevelLineInstance.GetComponent<RectTransform>();
+            if (levelLineRect != null)
+            {
+                levelLineRect.DOAnchorPos(targetPosition, 1.0f)
+                    .SetEase(DG.Tweening.Ease.OutQuart)
+                    .OnComplete(() => {
+                        Debug.Log($"[TalentWindow] Level Line moved to Zone_2 first node: {firstNode.Name} at position {targetPosition}");
+                    });
+            }
+        }
+
+        /// <summary>
+        /// Calculate position for first node in specified zone
+        /// </summary>
+        private Vector2 CalculateFirstNodePositionInZone(int zoneLevel, TalentModel firstNode)
+        {
+            if (layoutConfig == null) return Vector2.zero;
+
+            // Get zone container position
+            if (zoneContainers.TryGetValue(zoneLevel, out Transform zoneContainer))
+            {
+                // Calculate the position relative to the zone container
+                // First node is positioned at nodeYOffset = 60f (space for zone label)
+                Vector3 zoneLocalPos = talentTreeContent.InverseTransformPoint(zoneContainer.position);
+                float firstNodeYOffset = 60f; // This matches the yOffset used in CreateZoneWithProperHierarchy
+
+                // X position should be at normal column (left side for normal nodes)
+                float targetX = layoutConfig.NormalColumnX;
+                float targetY = zoneLocalPos.y + firstNodeYOffset;
+
+                return new Vector2(targetX, targetY);
+            }
+            else
+            {
+                // Fallback calculation if zone container not found
+                float zoneStartY = layoutConfig.CalculateZoneStartY(zoneLevel);
+                float firstNodeY = zoneStartY + 60f; // Add offset for zone label
+                return new Vector2(layoutConfig.NormalColumnX, firstNodeY);
+            }
+        }
+
+        /// <summary>
+        /// Calculate position for zone container
+        /// </summary>
+        private Vector2 CalculateZonePosition(int targetLevel)
+        {
+            if (layoutConfig == null) return Vector2.zero;
+
+            // Find the zone container for target level
+            if (zoneContainers.TryGetValue(targetLevel, out Transform zoneContainer))
+            {
+                // Get local position of zone container
+                Vector3 zoneLocalPos = talentTreeContent.InverseTransformPoint(zoneContainer.position);
+                return new Vector2(0f, zoneLocalPos.y); // Center horizontally, use zone Y position
+            }
+            else
+            {
+                // Fallback calculation based on layout config
+                float zoneStartY = layoutConfig.CalculateZoneStartY(targetLevel);
+                return new Vector2(0f, zoneStartY);
+            }
+        }
+
+        /// <summary>
+        /// Update wave background to rise to current progress
+        /// </summary>
+        private void UpdateWaveBackgroundToCurrentProgress()
+        {
+            if (waveBackgroundController == null) return;
+
+            // Get highest unlocked level (current progress)
+            int highestUnlockedLevel = CalculateHighestUnlockedLevel();
+            int maxLevel = TalentDatabase.Instance?.MaxPlayerLevel ?? 30;
+
+            // Update wave background to rise to current progress
+            waveBackgroundController.UpdateWaveHeight(highestUnlockedLevel, maxLevel);
+
+            Debug.Log($"[TalentWindow] Wave background updated to level {highestUnlockedLevel}/{maxLevel}");
+        }
+
+        /// <summary>
+        /// Calculate highest unlocked level from talent system
+        /// </summary>
+        private int CalculateHighestUnlockedLevel()
+        {
+            if (TalentManager.Instance == null) return 0;
+
+            int highestLevel = 0;
+            var allTalents = TalentDatabase.Instance.GetAllTalents();
+
+            foreach (var talent in allTalents)
+            {
+                if (TalentManager.Instance.IsTalentLearned(talent.ID))
+                {
+                    highestLevel = Mathf.Max(highestLevel, talent.RequiredPlayerLevel);
+                }
+            }
+
+            return highestLevel;
         }
 
         private void SubscribeToEvents()
@@ -140,6 +405,13 @@ namespace Talents.UI
             {
                 TalentManager.Instance.OnCurrencyChanged.AddListener(UpdateCurrencyUI);
                 TalentManager.Instance.OnTalentLearned.AddListener(OnTalentLearned);
+                TalentManager.Instance.OnTalentLearned.AddListener(OnTalentLearnedUpdateLevelLine);
+            }
+
+            // Subscribe to player level changes
+            if (OctoberStudio.User.UserProfileManager.Instance != null)
+            {
+                OctoberStudio.User.UserProfileManager.Instance.onUserLevelUp += OnPlayerLevelUp;
             }
         }
 
@@ -164,6 +436,7 @@ namespace Talents.UI
                 BuildProperZoneHierarchy();
                 UpdateCurrencyUI();
                 StartCoroutine(ScrollToCurrentProgressionDelayed());
+                SetupLevelLine();
             }
         }
 
@@ -199,11 +472,9 @@ namespace Talents.UI
             CreateConnectionLines();
             UpdateAllNodeStates();
             SetExactContentSize();
+            UpdateLevelLinePosition();
         }
-
-        /// <summary>
-        /// Create zone with proper hierarchy: Zone -> ZoneLabel + Nodes
-        /// </summary>
+        
         private float CreateZoneWithProperHierarchy(int zoneLevel, float startY)
         {
             // Step 1: Create zone container
@@ -227,7 +498,7 @@ namespace Talents.UI
             // Step 5: Create special node as child of zone container (if exists)
             if (specialTalent != null)
             {
-                float specialYOffset = 60f + (layoutConfig.NodeSpacing * 1.5f); // Center in zone
+                float specialYOffset = layoutConfig.SpecialNodeOffsetY; // Use config value
                 CreateTalentNodeInZoneContainer(specialTalent, zoneContainer, specialYOffset);
             }
             
@@ -245,19 +516,15 @@ namespace Talents.UI
         {
             var zoneObj = new GameObject($"Zone_{zoneLevel}");
             zoneObj.transform.SetParent(talentTreeContent, false);
-
             // Setup RectTransform for zone container
             var zoneRect = zoneObj.AddComponent<RectTransform>();
             zoneRect.anchorMin = new Vector2(0.5f, 0f);  // Bottom center anchor
             zoneRect.anchorMax = new Vector2(0.5f, 0f);  // Bottom center anchor
             zoneRect.pivot = new Vector2(0.5f, 0f);      // Bottom pivot
             zoneRect.anchoredPosition = new Vector2(0f, startY);
-            
-            // Calculate zone size (width: column span, height: will be set by content)
             float zoneWidth = Mathf.Abs(layoutConfig.NormalColumnX) + Mathf.Abs(layoutConfig.SpecialColumnX) + 200f;
-            zoneRect.sizeDelta = new Vector2(zoneWidth, 100f); // Initial height, will adjust
+            zoneRect.sizeDelta = new Vector2(zoneWidth, 100f);
 
-            // Debug visualization
             if (showLayoutDebug)
             {
                 var debugImage = zoneObj.AddComponent<Image>();
@@ -268,46 +535,52 @@ namespace Talents.UI
             zoneContainers[zoneLevel] = zoneObj.transform;
             return zoneObj.transform;
         }
-
-        /// <summary>
-        /// Create zone label inside zone container
-        /// </summary>
         private void CreateZoneLabelInContainer(int zoneLevel, Transform zoneContainer)
         {
-            GameObject labelObj;
-            
             if (zoneLabelPrefab != null)
             {
-                labelObj = Instantiate(zoneLabelPrefab, zoneContainer);
+                var labelObj = Instantiate(zoneLabelPrefab, zoneContainer);
+                labelObj.transform.GetChild(0).GetComponent<TextMeshProUGUI>().SetText(zoneLevel.ToString());
+
+                // Setup zone label positioning using config
+                var labelRect = labelObj.GetComponent<RectTransform>();
+                if (labelRect != null)
+                {
+                    labelRect.anchorMin = new Vector2(0.5f, 0f);   // Bottom center of zone
+                    labelRect.anchorMax = new Vector2(0.5f, 0f);   // Bottom center of zone
+                    labelRect.pivot = new Vector2(0.5f, 0f);       // Bottom pivot
+                    labelRect.anchoredPosition = new Vector2(0f, layoutConfig.ZoneLabelPositionY);
+                    labelRect.sizeDelta = layoutConfig.ZoneLabelSize;
+                }
+
+                zoneLabels[zoneLevel] = labelObj;
             }
-            else
-            {
-                labelObj = CreateDefaultZoneLabel(zoneLevel);
-                labelObj.transform.SetParent(zoneContainer, false);
-            }
+            // else
+            // {
+            //     // labelObj = CreateDefaultZoneLabel(zoneLevel);
+            //     // labelObj.transform.SetParent(zoneContainer, false);
+            // }
 
             // Setup zone label positioning within container
-            var labelRect = labelObj.GetComponent<RectTransform>();
-            if (labelRect != null)
-            {
-                labelRect.anchorMin = new Vector2(0.5f, 0f);   // Bottom center of zone
-                labelRect.anchorMax = new Vector2(0.5f, 0f);   // Bottom center of zone
-                labelRect.pivot = new Vector2(0.5f, 0f);       // Bottom pivot
-                labelRect.anchoredPosition = new Vector2(0f, layoutConfig.ZoneLabelOffsetY);
-                labelRect.sizeDelta = layoutConfig.ZoneLabelSize;
-            }
-
-            // Setup label text
-            var labelText = labelObj.GetComponentInChildren<TMP_Text>();
-            if (labelText != null)
-            {
-                labelText.text = $"LEVEL {zoneLevel}";
-                labelText.fontSize = layoutConfig.ZoneLabelFontSize;
-                labelText.color = layoutConfig.ZoneLabelColor;
-                labelText.alignment = TextAlignmentOptions.Center;
-            }
-
-            zoneLabels[zoneLevel] = labelObj;
+            // var labelRect = labelObj.GetComponent<RectTransform>();
+            // if (labelRect != null)
+            // {
+            //     labelRect.anchorMin = new Vector2(0.5f, 0f);   // Bottom center of zone
+            //     labelRect.anchorMax = new Vector2(0.5f, 0f);   // Bottom center of zone
+            //     labelRect.pivot = new Vector2(0.5f, 0f);       // Bottom pivot
+            //     labelRect.anchoredPosition = new Vector2(0f, layoutConfig.ZoneLabelOffsetY);
+            //     labelRect.sizeDelta = layoutConfig.ZoneLabelSize;
+            // }
+            //
+            // // Setup label text
+            // var labelText = labelObj.GetComponentInChildren<TextMeshProUGUI>();
+            // if (labelText != null)
+            // {
+            //     labelText.text = $"LEVEL {zoneLevel}";
+            //     labelText.fontSize = layoutConfig.ZoneLabelFontSize;
+            //     labelText.alignment = TextAlignmentOptions.Center;
+            // }
+    
         }
 
         /// <summary>
@@ -326,10 +599,9 @@ namespace Talents.UI
             var textObj = new GameObject("LabelText");
             textObj.transform.SetParent(labelObj.transform, false);
             
-            var text = textObj.AddComponent<TMP_Text>();
+            var text = textObj.AddComponent<TextMeshProUGUI>();
             text.text = $"LEVEL {zoneLevel}";
             text.fontSize = layoutConfig.ZoneLabelFontSize;
-            text.color = layoutConfig.ZoneLabelColor;
             text.alignment = TextAlignmentOptions.Center;
 
             // Setup text to fill parent
@@ -438,7 +710,7 @@ namespace Talents.UI
 
             for (int i = 0; i < specialNodes.Count - 1; i++)
             {
-                CreateConnectionLine(specialNodes[i], specialNodes[i + 1]);
+                CreateSpecialConnectionLine(specialNodes[i], specialNodes[i + 1]);
             }
         }
 
@@ -448,34 +720,71 @@ namespace Talents.UI
         private void CreateConnectionLine(TalentNodeBehavior fromNode, TalentNodeBehavior toNode)
         {
             GameObject lineObj;
-            
+
             if (connectionLinePrefab != null)
             {
                 lineObj = Instantiate(connectionLinePrefab, connectionLineParent);
+                SetupConnectionLine(lineObj, fromNode.transform, toNode.transform);
+                connectionLines.Add(lineObj);
             }
-            else
-            {
-                lineObj = CreateDefaultConnectionLine();
-            }
+            // else
+            // {
+            //     lineObj = CreateDefaultConnectionLine();
+            // }
 
-            SetupConnectionLine(lineObj, fromNode.transform, toNode.transform);
-            connectionLines.Add(lineObj);
+
         }
 
         /// <summary>
-        /// Create default connection line
+        /// Create special connection line between special nodes
         /// </summary>
-        private GameObject CreateDefaultConnectionLine()
+        private void CreateSpecialConnectionLine(TalentNodeBehavior fromNode, TalentNodeBehavior toNode)
         {
-            var lineObj = new GameObject("ConnectionLine");
-            lineObj.transform.SetParent(connectionLineParent, false);
+            GameObject lineObj;
 
-            var lineImage = lineObj.AddComponent<Image>();
-            lineImage.color = layoutConfig.InactiveConnectionColor;
-            lineImage.raycastTarget = false;
+            if (specialConnectionLinePrefab != null)
+            {
+                lineObj = Instantiate(specialConnectionLinePrefab, connectionLineParent);
+                SetupConnectionLine(lineObj, fromNode.transform, toNode.transform);
+                connectionLines.Add(lineObj);
 
-            return lineObj;
+                // Apply special styling to the connection line
+                ApplySpecialConnectionStyling(lineObj);
+            }
+            else
+            {
+                // Fallback to regular connection line if special prefab is not available
+                CreateConnectionLine(fromNode, toNode);
+
+                // Find the last added line and apply special styling
+                if (connectionLines.Count > 0)
+                {
+                    ApplySpecialConnectionStyling(connectionLines[connectionLines.Count - 1]);
+                }
+            }
         }
+
+        /// <summary>
+        /// Apply special styling to connection lines for special nodes
+        /// </summary>
+        private void ApplySpecialConnectionStyling(GameObject lineObj)
+        {
+            var lineImage = lineObj.GetComponent<Image>();
+            if (lineImage != null)
+            {
+                // Make special connection lines golden and slightly thicker
+                lineImage.color = new Color(1f, 0.8f, 0f, 0.8f); // Golden color
+
+                var lineRect = lineObj.GetComponent<RectTransform>();
+                if (lineRect != null)
+                {
+                    // Make special lines slightly thicker
+                    Vector2 currentSize = lineRect.sizeDelta;
+                    lineRect.sizeDelta = new Vector2(currentSize.x, currentSize.y * 1.5f);
+                }
+            }
+        }
+
 
         /// <summary>
         /// Setup connection line between two world positions
@@ -485,7 +794,6 @@ namespace Talents.UI
             var lineRect = lineObj.GetComponent<RectTransform>();
             if (lineRect == null) return;
 
-            // Convert world positions to content local positions
             Vector3 startWorldPos = startTransform.position;
             Vector3 endWorldPos = endTransform.position;
             
@@ -509,9 +817,6 @@ namespace Talents.UI
             lineRect.pivot = new Vector2(0.5f, 0.5f);
         }
 
-        /// <summary>
-        /// Set exact content size based on total zone height
-        /// </summary>
         private void SetExactContentSize()
         {
             if (talentTreeContent == null) return;
@@ -535,9 +840,9 @@ namespace Talents.UI
         private IEnumerator ScrollToCurrentProgressionDelayed()
         {
             yield return new WaitForEndOfFrame();
-            yield return new WaitForEndOfFrame(); // Extra frame for layout
+            yield return new WaitForEndOfFrame();
 
-            if (talentScrollRect == null) // return if not initialized
+            if (talentScrollRect == null)
                 yield break;
 
             var currentNode = TalentManager.Instance?.GetCurrentProgressionNode();
@@ -558,24 +863,17 @@ namespace Talents.UI
         {
             if (talentScrollRect == null || targetNode == null) return;
 
-            // Get node's world position and convert to scroll position
             var nodeWorldPos = targetNode.transform.position;
             var nodeLocalPos = talentTreeContent.InverseTransformPoint(nodeWorldPos);
             
             var contentHeight = talentTreeContent.sizeDelta.y;
             var viewportHeight = talentScrollRect.viewport.rect.height;
-
-            // Calculate normalized position (0 = bottom, 1 = top)
             float normalizedPos = Mathf.Clamp01((nodeLocalPos.y + viewportHeight * 0.5f) / contentHeight);
             talentScrollRect.verticalNormalizedPosition = normalizedPos;
         }
 
-        /// <summary>
-        /// Clear talent tree completely
-        /// </summary>
         private void ClearTalentTree()
         {
-            // Clear nodes
             foreach (var node in activeNodes)
             {
                 if (node != null)
@@ -584,7 +882,6 @@ namespace Talents.UI
             activeNodes.Clear();
             talentNodes.Clear();
 
-            // Clear zone containers (will destroy labels and nodes too)
             foreach (var container in zoneContainers.Values)
             {
                 if (container != null)
@@ -592,6 +889,13 @@ namespace Talents.UI
             }
             zoneContainers.Clear();
             zoneLabels.Clear();
+
+            // Clear level line instance
+            if (currentLevelLineInstance != null)
+            {
+                Destroy(currentLevelLineInstance);
+                currentLevelLineInstance = null;
+            }
 
             // Clear connection lines
             foreach (var line in connectionLines)
@@ -610,24 +914,6 @@ namespace Talents.UI
             foreach (var node in activeNodes)
             {
                 node.UpdateVisualState();
-            }
-
-            UpdateConnectionLineStates();
-        }
-
-        /// <summary>
-        /// Update connection line states
-        /// </summary>
-        private void UpdateConnectionLineStates()
-        {
-            foreach (var line in connectionLines)
-            {
-                var lineImage = line.GetComponent<Image>();
-                if (lineImage != null)
-                {
-                    // Basic implementation - can be enhanced with progression logic
-                    lineImage.color = layoutConfig.InactiveConnectionColor;
-                }
             }
         }
 
@@ -727,20 +1013,61 @@ namespace Talents.UI
         }
 
         /// <summary>
-        /// Show reset confirmation
+        /// Handle talent learned event for level line updates
         /// </summary>
-        private void ShowResetConfirmation()
+        private void OnTalentLearnedUpdateLevelLine(TalentModel talent)
         {
-            if (confirmationPanel == null) return;
+            // Update level line position when a new talent is learned
+            // This might change the current unlockable level
+            UpdateLevelLinePosition();
 
-            confirmationText.text = "Reset all talents?\nThis will refund all spent currency.";
-            confirmationPanel.SetActive(true);
+            // Check if we should continue to Zone_2 progression
+            CheckAndContinueToZone2Progression(talent);
+        }
 
-            confirmationCallback = () => {
-                TalentManager.Instance?.ResetAllTalents();
-                UpdateAllNodeStates();
-                UpdateCurrencyUI();
-            };
+        /// <summary>
+        /// Check if talent progression should continue to Zone_2 and move Level Line accordingly
+        /// </summary>
+        private void CheckAndContinueToZone2Progression(TalentModel learnedTalent)
+        {
+            // Check if we've completed Zone_1 (level 1) and can progress to Zone_2
+            if (learnedTalent.RequiredPlayerLevel == 1 && CanProgressToZone2())
+            {
+                // Move Level Line to Zone_2 first node
+                MoveLevelLineToZone2FirstNode();
+                Debug.Log("[TalentWindow] Talent progression continuing to Zone_2");
+            }
+        }
+
+        /// <summary>
+        /// Check if player can progress to Zone_2 (has completed requirements for level 1)
+        /// </summary>
+        private bool CanProgressToZone2()
+        {
+            if (TalentManager.Instance == null) return false;
+
+            // Get all Zone_1 talents
+            var zone1Talents = TalentDatabase.Instance.GetNormalTalentsInZone(1);
+
+            // Check if at least one talent from Zone_1 is learned (typical progression requirement)
+            bool hasZone1Progress = zone1Talents.Any(t => TalentManager.Instance.IsTalentLearned(t.ID));
+
+            // Also check if player level allows Zone_2 access
+            int currentPlayerLevel = GetCurrentPlayerLevel();
+            bool hasLevelRequirement = currentPlayerLevel >= 2;
+
+            return hasZone1Progress && hasLevelRequirement;
+        }
+
+        /// <summary>
+        /// Handle player level up event
+        /// </summary>
+        private void OnPlayerLevelUp(int newLevel)
+        {
+            // Update level line position when player level changes
+            UpdateLevelLinePosition();
+
+            Debug.Log($"[TalentWindow] Player leveled up to {newLevel}, updating level line position");
         }
 
         /// <summary>
@@ -780,6 +1107,13 @@ namespace Talents.UI
             {
                 TalentManager.Instance.OnCurrencyChanged.RemoveListener(UpdateCurrencyUI);
                 TalentManager.Instance.OnTalentLearned.RemoveListener(OnTalentLearned);
+                TalentManager.Instance.OnTalentLearned.RemoveListener(OnTalentLearnedUpdateLevelLine);
+            }
+
+            // Unsubscribe from player level events
+            if (OctoberStudio.User.UserProfileManager.Instance != null)
+            {
+                OctoberStudio.User.UserProfileManager.Instance.onUserLevelUp -= OnPlayerLevelUp;
             }
         }
 
@@ -800,42 +1134,49 @@ namespace Talents.UI
             HideTooltip();
         }
 
+
+
         private void OnDestroy()
         {
             Clear();
         }
 
-        // Debug methods
-        [ContextMenu("Debug Zone Hierarchy")]
-        public void DebugZoneHierarchy()
+        /// <summary>
+        /// Public method to manually trigger Level Line movement to Zone_2 first node
+        /// Can be called from UI or other systems
+        /// </summary>
+        [ContextMenu("Move Level Line to Zone 2 First Node")]
+        public void TriggerLevelLineToZone2()
         {
-            Debug.Log($"=== ZONE HIERARCHY DEBUG ===");
-            Debug.Log($"Total Zones: {zoneContainers.Count}");
-            Debug.Log($"Total Nodes: {activeNodes.Count}");
-            
-            foreach (var zone in zoneContainers)
+            MoveLevelLineToZone2FirstNode();
+        }
+
+        /// <summary>
+        /// Public method to test Zone_2 progression logic
+        /// </summary>
+        [ContextMenu("Test Zone 2 Progression")]
+        public void TestZone2Progression()
+        {
+            bool canProgress = CanProgressToZone2();
+            Debug.Log($"[TalentWindow] Can progress to Zone_2: {canProgress}");
+
+            if (canProgress)
             {
-                int zoneLevel = zone.Key;
-                Transform container = zone.Value;
-                int childCount = container.childCount;
-                
-                Debug.Log($"Zone {zoneLevel}: {childCount} children");
-                for (int i = 0; i < container.childCount; i++)
-                {
-                    var child = container.GetChild(i);
-                    Debug.Log($"  - {child.name}");
-                }
+                MoveLevelLineToZone2FirstNode();
+            }
+            else
+            {
+                Debug.Log("[TalentWindow] Zone_2 progression requirements not met");
+
+                // Show current status
+                var zone1Talents = TalentDatabase.Instance.GetNormalTalentsInZone(1);
+                int learnedCount = zone1Talents.Count(t => TalentManager.Instance.IsTalentLearned(t.ID));
+                int currentLevel = GetCurrentPlayerLevel();
+
+                Debug.Log($"[TalentWindow] Zone_1 talents learned: {learnedCount}/{zone1Talents.Count}");
+                Debug.Log($"[TalentWindow] Current player level: {currentLevel} (need >= 2)");
             }
         }
 
-        [ContextMenu("Force Scroll to Bottom")]
-        public void ForceScrollToBottom()
-        {
-            if (talentScrollRect != null)
-            {
-                talentScrollRect.verticalNormalizedPosition = 0f;
-                Debug.Log("Forced scroll to bottom");
-            }
-        }
     }
 }

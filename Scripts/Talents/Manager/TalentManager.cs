@@ -123,18 +123,35 @@ namespace Talents.Manager
         }
 
         /// <summary>
-        /// Check if normal node can be learned
+        /// Check if normal node can be learned - FIXED: Now checks same stat type in previous level
         /// </summary>
         private bool CanLearnNormalNode(int talentId)
         {
             var talent = TalentDatabase.Instance.GetTalentById(talentId);
-            if (talent.RequiredPlayerLevel == 1) return true; // First zone nodes are always available
+            if (talent.RequiredPlayerLevel == 1) return true; // Level 1 nodes are always available
 
-            // Must have learned previous node in same column
-            var previousNode = TalentDatabase.Instance.GetPreviousTalent(talentId);
-            if (previousNode == null) return true; // No previous node
+            // Find node with same stat type in previous level
+            var previousLevelNodes = TalentDatabase.Instance.GetNormalTalentsInZone(talent.RequiredPlayerLevel - 1);
+            var previousSameStatNode = previousLevelNodes.FirstOrDefault(n => GetStatType(n) == GetStatType(talent));
 
-            return IsTalentLearned(previousNode.ID);
+            return previousSameStatNode != null && IsTalentLearned(previousSameStatNode.ID);
+        }
+
+        /// <summary>
+        /// Get stat type from talent for dependency checking
+        /// </summary>
+        private string GetStatType(TalentModel talent)
+        {
+            if (talent.Name.Contains("ATK") || talent.StatType == UpgradeType.Damage)
+                return "ATK";
+            if (talent.Name.Contains("DEF") || talent.Name.Contains("Defense") || talent.Name.Contains("Armor"))
+                return "DEF";
+            if (talent.Name.Contains("SPEED") || talent.StatType == UpgradeType.Speed)
+                return "SPEED";
+            if (talent.Name.Contains("HEAL") || talent.Name.Contains("Health"))
+                return "HEAL";
+
+            return "UNKNOWN";
         }
 
         /// <summary>
@@ -157,13 +174,13 @@ namespace Talents.Manager
             if (talent.NodeType == TalentNodeType.Normal)
             {
                 // Normal nodes use Gold
-                var goldSave = GameController.SaveManager.GetSave<CurrencySave>("GoldCoins");
+                var goldSave = GameController.SaveManager.GetSave<CurrencySave>("gold");
                 return goldSave != null && goldSave.Amount >= talent.Cost;
             }
             else if (talent.NodeType == TalentNodeType.Special)
             {
                 // Special nodes use Orc
-                var orcSave = GameController.SaveManager.GetSave<CurrencySave>("Orc");
+                var orcSave = GameController.SaveManager.GetSave<CurrencySave>("orc");
                 return orcSave != null && orcSave.Amount >= talent.Cost;
             }
 
@@ -217,7 +234,7 @@ namespace Talents.Manager
         {
             if (talent.NodeType == TalentNodeType.Normal)
             {
-                var goldSave = GameController.SaveManager.GetSave<CurrencySave>("GoldCoins");
+                var goldSave = GameController.SaveManager.GetSave<CurrencySave>("gold");
                 if (goldSave != null && goldSave.CanAfford(talent.Cost))
                 {
                     goldSave.Withdraw(talent.Cost);
@@ -226,7 +243,7 @@ namespace Talents.Manager
             }
             else if (talent.NodeType == TalentNodeType.Special)
             {
-                var orcSave = GameController.SaveManager.GetSave<CurrencySave>("Orc");
+                var orcSave = GameController.SaveManager.GetSave<CurrencySave>("orc");
                 if (orcSave != null && orcSave.CanAfford(talent.Cost))
                 {
                     orcSave.Withdraw(talent.Cost);
@@ -242,9 +259,17 @@ namespace Talents.Manager
         /// </summary>
         private int GetCurrentPlayerLevel()
         {
-            // TODO: Get from actual player system
-            // For now, return a test value
-            return bypassLevelRequirement ? 999 : 10;
+            if (bypassLevelRequirement) return 999;
+
+            // Get from UserProfileManager (actual player system)
+            if (OctoberStudio.User.UserProfileManager.Instance != null &&
+                OctoberStudio.User.UserProfileManager.Instance.IsDataReady)
+            {
+                return OctoberStudio.User.UserProfileManager.Instance.ProfileSave.UserLevel;
+            }
+
+            // Fallback to level 1 if user profile not ready
+            return 1;
         }
 
         /// <summary>
@@ -252,13 +277,13 @@ namespace Talents.Manager
         /// </summary>
         public int GetGoldCoins()
         {
-            var goldSave = GameController.SaveManager.GetSave<CurrencySave>("GoldCoins");
+            var goldSave = GameController.SaveManager.GetSave<CurrencySave>("gold");
             return goldSave?.Amount ?? 0;
         }
 
         public int GetOrc()
         {
-            var orcSave = GameController.SaveManager.GetSave<CurrencySave>("Orc");
+            var orcSave = GameController.SaveManager.GetSave<CurrencySave>("orc");
             return orcSave?.Amount ?? 0;
         }
 
@@ -297,13 +322,13 @@ namespace Talents.Manager
             // Refund currencies
             if (totalGoldRefund > 0)
             {
-                var goldSave = GameController.SaveManager.GetSave<CurrencySave>("GoldCoins");
+                var goldSave = GameController.SaveManager.GetSave<CurrencySave>("gold");
                 goldSave?.Deposit(totalGoldRefund);
             }
 
             if (totalOrcRefund > 0)
             {
-                var orcSave = GameController.SaveManager.GetSave<CurrencySave>("Orc");
+                var orcSave = GameController.SaveManager.GetSave<CurrencySave>("orc");
                 orcSave?.Deposit(totalOrcRefund);
             }
 
@@ -494,6 +519,55 @@ namespace Talents.Manager
             bypassLevelRequirement = !bypassLevelRequirement;
             Debug.Log($"[TalentManager] Bypass level requirement: {bypassLevelRequirement}");
         }
+
+        [ContextMenu("Debug Player Level Info")]
+        public void DebugPlayerLevelInfo()
+        {
+            int currentLevel = GetCurrentPlayerLevel();
+            Debug.Log($"[TalentManager] Current player level: {currentLevel}");
+            Debug.Log($"[TalentManager] Bypass level requirement: {bypassLevelRequirement}");
+
+            if (OctoberStudio.User.UserProfileManager.Instance != null)
+            {
+                Debug.Log($"[TalentManager] UserProfileManager exists: {OctoberStudio.User.UserProfileManager.Instance.IsDataReady}");
+                if (OctoberStudio.User.UserProfileManager.Instance.IsDataReady)
+                {
+                    Debug.Log($"[TalentManager] UserProfileManager level: {OctoberStudio.User.UserProfileManager.Instance.ProfileSave.UserLevel}");
+                }
+            }
+            else
+            {
+                Debug.Log("[TalentManager] UserProfileManager is null");
+            }
+        }
+
+        [ContextMenu("Debug Currency Info")]
+        public void DebugCurrencyInfo()
+        {
+            Debug.Log("=== TALENT CURRENCY DEBUG ===");
+
+            // Test Gold currency access
+            var goldSave = GameController.SaveManager.GetSave<CurrencySave>("gold");
+            var goldAmount = GetGoldCoins();
+            Debug.Log($"Gold - Save exists: {goldSave != null}, Amount via TalentManager: {goldAmount}, Amount via Save: {goldSave?.Amount ?? -1}");
+
+            // Test Orc currency access
+            var orcSave = GameController.SaveManager.GetSave<CurrencySave>("orc");
+            var orcAmount = GetOrc();
+            Debug.Log($"Orc - Save exists: {orcSave != null}, Amount via TalentManager: {orcAmount}, Amount via Save: {orcSave?.Amount ?? -1}");
+
+            // Test CurrenciesManager integration
+            if (OctoberStudio.Currency.CurrenciesManager.Instance != null)
+            {
+                var cmGold = OctoberStudio.Currency.CurrenciesManager.Instance.GoldAmount;
+                var cmOrc = OctoberStudio.Currency.CurrenciesManager.Instance.OrcAmount;
+                Debug.Log($"CurrenciesManager - Gold: {cmGold}, Orc: {cmOrc}");
+            }
+            else
+            {
+                Debug.Log("CurrenciesManager.Instance is null");
+            }
+        }
     }
 
     /// <summary>
@@ -505,7 +579,6 @@ namespace Talents.Manager
         Available,           // Can be learned
         Learned,             // Already learned
         InsufficientPoints,  // Not enough currency
-        MaxLevel             // Already at maximum level
     }
 
     /// <summary>

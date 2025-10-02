@@ -61,8 +61,13 @@ namespace OctoberStudio.Shop.UI
                 continueButton.onClick.AddListener(OnContinueClicked);
             }
 
-            // Initially hide popup
-            gameObject.SetActive(false);
+            // Initially hide popup by setting alpha to 0
+            if (popupCanvasGroup != null)
+            {
+                popupCanvasGroup.alpha = 0f;
+                popupCanvasGroup.interactable = false;
+                popupCanvasGroup.blocksRaycasts = false;
+            }
         }
 
         /// <summary>
@@ -71,9 +76,10 @@ namespace OctoberStudio.Shop.UI
         public void ShowRewards(List<RewardData> rewards, string popupTitle = "Rewards!")
         {
             if (isShowing) return;
-            gameObject.SetActive(true);
+
             StartCoroutine(ShowRewardsCoroutine(rewards, popupTitle));
         }
+
 
         /// <summary>
         /// Show single reward (for simple purchases)
@@ -89,12 +95,18 @@ namespace OctoberStudio.Shop.UI
         private IEnumerator ShowRewardsCoroutine(List<RewardData> rewards, string popupTitle)
         {
             isShowing = true;
-            // gameObject.SetActive(true);
 
             // Setup popup
             SetupPopup(popupTitle, rewards);
 
-            // Initial state - hidden
+            // Enable interaction
+            if (popupCanvasGroup != null)
+            {
+                popupCanvasGroup.interactable = true;
+                popupCanvasGroup.blocksRaycasts = true;
+            }
+
+            // Initial state - start animation from hidden state
             popupCanvasGroup.alpha = 0f;
             popupContainer.localScale = Vector3.zero;
             continuePanel.SetActive(false);
@@ -259,7 +271,8 @@ namespace OctoberStudio.Shop.UI
 
                 if (reward.Rarity >= EquipmentRarity.Epic)
                 {
-                    rewardBehavior.FlashBackground(GetRarityColor(reward.Rarity));
+                    // Set rarity icon instead of background flash
+                    rewardBehavior.SetRarityIcon(GetRarityIcon(reward.Rarity));
                 }
 
                 // Wait before next item
@@ -302,16 +315,18 @@ namespace OctoberStudio.Shop.UI
         }
 
         /// <summary>
-        /// Get color for rarity flash
+        /// Get rarity icon sprite based on rarity int value
         /// </summary>
-        private Color GetRarityColor(EquipmentRarity rarity)
+        private Sprite GetRarityIcon(EquipmentRarity rarity)
         {
-            return rarity switch
+            if (DataLoadingManager.Instance == null)
             {
-                EquipmentRarity.Epic => new Color(0.6f, 0.2f, 0.8f, 0.5f),
-                EquipmentRarity.Legendary => new Color(1f, 0.8f, 0.2f, 0.5f),
-                _ => Color.white
-            };
+                return null;
+            }
+
+            // Use the int value of EquipmentRarity as icon name
+            string iconName = ((int)rarity).ToString();
+            return DataLoadingManager.Instance.LoadSprite("UI", iconName);
         }
 
         /// <summary>
@@ -363,9 +378,13 @@ namespace OctoberStudio.Shop.UI
 
             yield return new WaitForSecondsRealtime(popupAnimationDuration);
 
-            // Clean up
+            // Clean up - disable interaction but keep GameObject active
             isShowing = false;
-            gameObject.SetActive(false);
+            if (popupCanvasGroup != null)
+            {
+                popupCanvasGroup.interactable = false;
+                popupCanvasGroup.blocksRaycasts = false;
+            }
 
             // Trigger event
             OnPopupClosed?.Invoke();
@@ -394,7 +413,14 @@ namespace OctoberStudio.Shop.UI
             }
 
             isShowing = false;
-            gameObject.SetActive(false);
+
+            // Hide using alpha instead of SetActive
+            if (popupCanvasGroup != null)
+            {
+                popupCanvasGroup.alpha = 0f;
+                popupCanvasGroup.interactable = false;
+                popupCanvasGroup.blocksRaycasts = false;
+            }
         }
 
         /// <summary>

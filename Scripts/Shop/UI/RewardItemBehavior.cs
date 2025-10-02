@@ -28,7 +28,7 @@ public class RewardItemBehavior : MonoBehaviour
         // Set rarity border
         if (rarityBorder != null)
         {
-            rarityBorder.color = GetRarityColor(reward.Rarity);
+            rarityBorder.sprite = GetRarityIcon(reward.Rarity);
         }
 
         // Set quantity
@@ -87,19 +87,29 @@ public class RewardItemBehavior : MonoBehaviour
     }
 
     /// <summary>
-    /// Get color for rarity
+    /// Get rarity icon sprite based on rarity int value
     /// </summary>
-    private Color GetRarityColor(EquipmentRarity rarity)
+    private Sprite GetRarityIcon(EquipmentRarity rarity)
     {
-        return rarity switch
+        if (DataLoadingManager.Instance == null)
         {
-            EquipmentRarity.Common => Color.white,
-            EquipmentRarity.Uncommon => Color.green,
-            EquipmentRarity.Rare => Color.blue,
-            EquipmentRarity.Epic => Color.magenta,
-            EquipmentRarity.Legendary => Color.yellow,
-            _ => Color.white
-        };
+            return null;
+        }
+
+        // Use the int value of EquipmentRarity as icon name
+        string iconName = ((int)rarity).ToString();
+        return DataLoadingManager.Instance.LoadSprite("", iconName);
+    }
+
+    /// <summary>
+    /// Set rarity icon for the item
+    /// </summary>
+    public void SetRarityIcon(Sprite rarityIcon)
+    {
+        if (rarityBorder != null && rarityIcon != null)
+        {
+            rarityBorder.sprite = rarityIcon;
+        }
     }
 
     /// <summary>
@@ -111,7 +121,7 @@ public class RewardItemBehavior : MonoBehaviour
 
         backgroundFlash.color = flashColor;
         backgroundFlash.gameObject.SetActive(true);
-        
+
         // Fade out flash
         backgroundFlash.DoAlpha(0f, 1f).SetOnFinish(() => {
             backgroundFlash.gameObject.SetActive(false);

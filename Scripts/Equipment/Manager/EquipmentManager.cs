@@ -33,10 +33,8 @@ namespace OctoberStudio.Equipment
 
             instance = this;
             DontDestroyOnLoad(gameObject);
-        }
-
-        private void Start()
-        {
+            
+            
             equipmentSave = GameController.SaveManager.GetSave<EquipmentSave>("Equipment");
             
             if (EquipmentDatabase.Instance != null)
@@ -50,6 +48,22 @@ namespace OctoberStudio.Equipment
                 }
             }
         }
+
+        // private void Awake()
+        // {
+        //     equipmentSave = GameController.SaveManager.GetSave<EquipmentSave>("Equipment");
+        //     
+        //     if (EquipmentDatabase.Instance != null)
+        //     {
+        //         EquipmentDatabase.Instance.OnDataLoaded += OnDatabaseLoaded;
+        //         EquipmentDatabase.Instance.OnLoadingError += OnDatabaseError;
+        //         
+        //         if (EquipmentDatabase.Instance.IsDataLoaded)
+        //         {
+        //             OnDatabaseLoaded();
+        //         }
+        //     }
+        // }
 
         private void OnDestroy()
         {

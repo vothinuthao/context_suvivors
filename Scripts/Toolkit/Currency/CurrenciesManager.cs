@@ -10,6 +10,8 @@ namespace OctoberStudio.Currency
 
         private CurrencySave goldCurrency;
         private CurrencySave gemCurrency;
+        private CurrencySave orcCurrency;
+        private CurrencySave piecesCurrency;
 
         protected override void Initialize()
         {
@@ -28,8 +30,10 @@ namespace OctoberStudio.Currency
             {
                 goldCurrency = GameController.SaveManager.GetSave<CurrencySave>("gold");
                 gemCurrency = GameController.SaveManager.GetSave<CurrencySave>("gem");
-                
-                Debug.Log($"[CurrenciesManager] Currency references initialized - Gold: {goldCurrency?.Amount ?? 0}, Gems: {gemCurrency?.Amount ?? 0}");
+                orcCurrency = GameController.SaveManager.GetSave<CurrencySave>("orc");
+                piecesCurrency = GameController.SaveManager.GetSave<CurrencySave>("pieces");
+
+                Debug.Log($"[CurrenciesManager] Currency references initialized - Gold: {goldCurrency?.Amount ?? 0}, Gems: {gemCurrency?.Amount ?? 0}, Orc: {orcCurrency?.Amount ?? 0}, Pieces: {piecesCurrency?.Amount ?? 0}");
             }
             else
             {
@@ -153,6 +157,22 @@ namespace OctoberStudio.Currency
                     }
                     return gemCurrency;
 
+                case "orc":
+                case "orcs":
+                    if (orcCurrency == null)
+                    {
+                        orcCurrency = GameController.SaveManager.GetSave<CurrencySave>("orc");
+                    }
+                    return orcCurrency;
+
+                case "pieces":
+                case "piece":
+                    if (piecesCurrency == null)
+                    {
+                        piecesCurrency = GameController.SaveManager.GetSave<CurrencySave>("pieces");
+                    }
+                    return piecesCurrency;
+
                 default:
                     // For other currencies, get directly from SaveManager
                     return GameController.SaveManager.GetSave<CurrencySave>(currencyId);
@@ -196,6 +216,8 @@ namespace OctoberStudio.Currency
         {
             goldCurrency = null;
             gemCurrency = null;
+            orcCurrency = null;
+            piecesCurrency = null;
             InitializeCurrencyReferences();
         }
 
@@ -213,6 +235,8 @@ namespace OctoberStudio.Currency
             // Add standard currencies
             currencies.Add("gold");
             currencies.Add("gem");
+            currencies.Add("orc");
+            currencies.Add("pieces");
             
             return currencies.ToArray();
         }
@@ -260,12 +284,16 @@ namespace OctoberStudio.Currency
         public void LogAllCurrencyAmounts()
         {
             Debug.Log("[CurrenciesManager] Current Currency Amounts:");
-            
+
             var goldAmount = GetAmount("gold");
             var gemAmount = GetAmount("gem");
-            
+            var orcAmount = GetAmount("orc");
+            var piecesAmount = GetAmount("pieces");
+
             Debug.Log($"  Gold: {goldAmount}");
             Debug.Log($"  Gems: {gemAmount}");
+            Debug.Log($"  Orc: {orcAmount}");
+            Debug.Log($"  Pieces: {piecesAmount}");
         }
 
         /// <summary>
@@ -273,15 +301,23 @@ namespace OctoberStudio.Currency
         /// </summary>
         public int GoldAmount => GetAmount("gold");
         public int GemAmount => GetAmount("gem");
+        public int OrcAmount => GetAmount("orc");
+        public int PiecesAmount => GetAmount("pieces");
 
         /// <summary>
         /// Quick access methods for common operations - NEW: Convenience methods
         /// </summary>
         public void AddGold(int amount) => Add("gold", amount);
         public void AddGems(int amount) => Add("gem", amount);
+        public void AddOrc(int amount) => Add("orc", amount);
+        public void AddPieces(int amount) => Add("pieces", amount);
         public bool TrySpendGold(int amount) => TrySpend("gold", amount);
         public bool TrySpendGems(int amount) => TrySpend("gem", amount);
+        public bool TrySpendOrc(int amount) => TrySpend("orc", amount);
+        public bool TrySpendPieces(int amount) => TrySpend("pieces", amount);
         public bool CanAffordGold(int amount) => CanAfford("gold", amount);
         public bool CanAffordGems(int amount) => CanAfford("gem", amount);
+        public bool CanAffordOrc(int amount) => CanAfford("orc", amount);
+        public bool CanAffordPieces(int amount) => CanAfford("pieces", amount);
     }
 }

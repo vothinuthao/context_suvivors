@@ -1,5 +1,6 @@
 using OctoberStudio.Extensions;
 using TMPro;
+using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -26,39 +27,41 @@ namespace OctoberStudio.UI
 
         private void RecalculatePositions()
         {
+            if(label == null) return;
             label.SetSizeDeltaX(label.preferredWidth);
 
             var iconWidth = icon.rectTransform.sizeDelta.x;
             var textWidth = label.rectTransform.sizeDelta.x;
             var width = iconWidth + spacing + textWidth;
-
+            
             switch (aligment)
             {
+                case AligmentType.None:
+                    break;
                 case AligmentType.Center:
 
-                    icon.SetAnchoredPositionX(-width / 2f + iconWidth / 2f);
-                    label.SetAnchoredPositionX(width / 2f - textWidth / 2f);
+                    // icon.SetAnchoredPositionX(-width / 2f + iconWidth / 2f);
+                    // label.SetAnchoredPositionX(width / 2f - textWidth / 2f);
                     break;
 
                 case AligmentType.Left:
 
-                    icon.SetAnchoredPositionX(iconWidth / 2f);
-                    label.SetAnchoredPositionX(iconWidth + spacing + textWidth / 2f);
+                    // icon.SetAnchoredPositionX(iconWidth / 2f);
+                    // label.SetAnchoredPositionX(iconWidth + spacing + textWidth / 2f);
 
                     break;
 
                 case AligmentType.Right:
 
-                    icon.SetAnchoredPositionX(-textWidth - spacing - iconWidth / 2f);
-                    label.SetAnchoredPositionX(-textWidth / 2f);
-
+                    // icon.SetAnchoredPositionX(-textWidth - spacing - iconWidth / 2f);
+                    // label.SetAnchoredPositionX(-textWidth / 2f);
                     break;
             }
         }
 
         public enum AligmentType
         {
-            Left, Center, Right
+            None,Left, Center, Right
         }
     }
 }

@@ -2,10 +2,8 @@
 using UnityEditor;
 using UnityEngine;
 
-namespace OctoberStudio
-{
-    [CustomEditor(typeof(DataLoadingManager))]
-    public class DataLoadingManagerEditor : Editor
+[CustomEditor(typeof(DataLoadingManager))]
+public class DataLoadingManagerEditor : Editor
     {
         public override void OnInspectorGUI()
         {
@@ -36,5 +34,4 @@ namespace OctoberStudio
             }
         }
     }
-}
 #endif

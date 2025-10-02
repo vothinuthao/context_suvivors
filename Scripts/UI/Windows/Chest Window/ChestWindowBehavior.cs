@@ -5,6 +5,7 @@ using OctoberStudio.Input;
 using OctoberStudio.UI.Chest;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.EventSystems;
@@ -56,6 +57,8 @@ namespace OctoberStudio.UI
         [SerializeField] float[] pitchTier2;
         [SerializeField] float[] pitchTier3;
 
+        private const int REQUIRED_ABILITIES_COUNT = 3;
+
         private Coroutine coinsCoroutine;
         private IEasingCoroutine takeButtonCoroutine;
 
@@ -86,6 +89,9 @@ namespace OctoberStudio.UI
 
         public void OpenWindow(int tierId, List<AbilityData> abilities, List<AbilityData> selectedAbilities)
         {
+            // Đảm bảo luôn có đủ 3 abilities
+            List<AbilityData> finalSelectedAbilities = EnsureThreeAbilities(abilities, selectedAbilities);
+
             cacheMusicVolume = GameController.Music.volume;
             GameController.Music.DoVolume(0, 0.3f).SetUnscaledTime(true);
 
@@ -99,21 +105,24 @@ namespace OctoberStudio.UI
                 chestAnimator.SetTrigger(OPEN_TRIGGER);
             });
 
-            for(int i = 0; i < selectedAbilities.Count; i++)
+            // Luôn hiển thị 3 lines
+            for(int i = 0; i < REQUIRED_ABILITIES_COUNT; i++)
             {
-                var ability = selectedAbilities[i];
+                var ability = finalSelectedAbilities[i];
                 var line = lines[i];
                 var color = colorTiers[tierId][i];
                 var pitch = pitchTiers[tierId][i];
                 line.Launch(abilities, ability, linesAnimationDuration + abilityAppearDelay * i, 0.95f, color, pitch);
             }
 
-            for(int i = selectedAbilities.Count; i < lines.Count; i++)
+            // Ẩn các lines còn lại (nếu có)
+            for(int i = REQUIRED_ABILITIES_COUNT; i < lines.Count; i++)
             {
                 lines[i].gameObject.SetActive(false);
             }
+
             coinsReward = baseRewardAmount + tierId * tierRewardAmount + Random.Range(0, randomRewardAmount);
-            coinsCoroutine = StartCoroutine(CoinsCoroutine(coinsReward, linesAnimationDuration + abilityAppearDelay * (selectedAbilities.Count - 2)));
+            coinsCoroutine = StartCoroutine(CoinsCoroutine(coinsReward, linesAnimationDuration + abilityAppearDelay * (REQUIRED_ABILITIES_COUNT - 2)));
 
             IsAnimationPlaying = true;
 
@@ -123,6 +132,50 @@ namespace OctoberStudio.UI
             GameController.InputManager.onInputChanged += OnInputChanged;
 
             GameController.AudioManager.PlaySound(CHEST_WINDOW_POPUP_HASH);
+        }
+
+        /// <summary>
+        /// Đảm bảo luôn có đủ 3 abilities. Nếu thiếu, sẽ thêm abilities ngẫu nhiên từ list abilities.
+        /// </summary>
+        private List<AbilityData> EnsureThreeAbilities(List<AbilityData> availableAbilities, List<AbilityData> selectedAbilities)
+        {
+            List<AbilityData> result = new List<AbilityData>(selectedAbilities);
+
+            // Nếu đã có đủ 3 hoặc nhiều hơn, trả về 3 phần tử đầu tiên
+            if (result.Count >= REQUIRED_ABILITIES_COUNT)
+            {
+                return result.GetRange(0, REQUIRED_ABILITIES_COUNT);
+            }
+
+            // Nếu thiếu, thêm các abilities ngẫu nhiên từ list availableAbilities
+            List<AbilityData> remainingAbilities = availableAbilities
+                .Where(ability => !result.Contains(ability))
+                .ToList();
+
+            // Shuffle để chọn ngẫu nhiên
+            for (int i = remainingAbilities.Count - 1; i > 0; i--)
+            {
+                int randomIndex = Random.Range(0, i + 1);
+                var temp = remainingAbilities[i];
+                remainingAbilities[i] = remainingAbilities[randomIndex];
+                remainingAbilities[randomIndex] = temp;
+            }
+
+            // Thêm abilities cho đến khi đủ 3
+            int neededCount = REQUIRED_ABILITIES_COUNT - result.Count;
+            for (int i = 0; i < neededCount && i < remainingAbilities.Count; i++)
+            {
+                result.Add(remainingAbilities[i]);
+            }
+
+            // Nếu vẫn không đủ 3 (trường hợp availableAbilities có ít hơn 3 phần tử)
+            // Thêm lại các abilities đã có để đủ 3
+            while (result.Count < REQUIRED_ABILITIES_COUNT)
+            {
+                result.Add(availableAbilities[result.Count % availableAbilities.Count]);
+            }
+
+            return result;
         }
 
         private IEnumerator CoinsCoroutine(int coinsAmount, float duration)

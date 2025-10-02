@@ -21,7 +21,7 @@ namespace OctoberStudio.UI
         [Header("UI Elements")]
         [SerializeField] private ScrollRect scrollView;
 
-        [Header("Currency Display")]
+        // [Header("Currency Display")]
         [SerializeField] private ScalingLabelBehavior coinsLabel;
         [SerializeField] private ScalingLabelBehavior gemsLabel;
 
@@ -137,6 +137,9 @@ namespace OctoberStudio.UI
             {
                 InitializeCurrencies();
             }
+
+            // Always refresh shop items when opening - reset the ready flag to force reinitialization
+            isShopReady = false;
 
             // Initialize shop if database is ready
             if (ShopDatabase.Instance != null && ShopDatabase.Instance.IsDataLoaded)
@@ -257,7 +260,7 @@ namespace OctoberStudio.UI
                 .Where(g => g.Name.ToLower().Contains("character"))
                 .ToArray();
 
-            LogDebug($"Creating {characterGachaItems.Length} character gacha items");
+            // LogDebug($"Creating {characterGachaItems.Length} character gacha items");
 
             foreach (var item in characterGachaItems)
             {
@@ -387,7 +390,7 @@ namespace OctoberStudio.UI
                 int currentCoins = goldCurrency?.Amount ?? 0;
                 coinsLabel.SetAmount(currentCoins);
             }
-
+            
             if (gemsLabel != null)
             {
                 int currentGems = gemCurrency?.Amount ?? 0;

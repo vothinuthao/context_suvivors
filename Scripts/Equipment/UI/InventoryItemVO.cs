@@ -44,7 +44,7 @@ namespace Common.Scripts.Equipment.UI
 
             // Set icon and rarity border
             iconImage.sprite = EquipmentModel.GetIcon();
-            rarityBorder.color = EquipmentModel.GetRarityColor();
+            rarityBorder.sprite = EquipmentModel.GetRarityIcon();
 
             // Show level if more than 1
             if (levelText != null)

@@ -37,43 +37,13 @@ namespace OctoberStudio.Abilities
             abilityCoroutine = StartCoroutine(AbilityCoroutine());
         }
 
-        // private IEnumerator AbilityCoroutine()
-        // {
-        //     var lastTimeSpawned = Time.time - AbilityCooldown;
-        //
-        //     while (true)
-        //     {
-        //         for(int i = 0; i < AbilityLevel.SlashesCount; i++)
-        //         {
-        //             var slash = slashPool.GetEntity();
-        //
-        //             slash.transform.position = PlayerBehavior.CenterPosition;
-        //             slash.transform.rotation = Quaternion.FromToRotation(Vector2.right, PlayerBehavior.Player.LookDirection) * shashDirections[i].localRotation;
-        //
-        //             slash.DamageMultiplier = AbilityLevel.Damage;
-        //             slash.KickBack = false;
-        //
-        //             slash.Size = AbilityLevel.SlashSize;
-        //
-        //             slash.Init();
-        //
-        //             slash.onFinished += OnProjectileFinished;
-        //             slashes.Add(slash);
-        //
-        //             GameController.AudioManager.PlaySound(STEEL_SWORD_ATTACK_HASH);
-        //
-        //             yield return new WaitForSeconds(AbilityLevel.TimeBetweenSlashes * PlayerBehavior.Player.CooldownMultiplier);
-        //         }
-        //
-        //         yield return new WaitForSeconds(AbilityLevel.AbilityCooldown * PlayerBehavior.Player.CooldownMultiplier - AbilityLevel.TimeBetweenSlashes * PlayerBehavior.Player.CooldownMultiplier * AbilityLevel.SlashesCount);
-        //     }
-        // }
         private IEnumerator AbilityCoroutine()
         {
             var lastTimeSpawned = Time.time - AbilityCooldown;
 
             while (true)
             {
+                // Get closest enemy direction for the first slash
                 var closestEnemy = StageController.EnemiesSpawner.GetClosestEnemy(PlayerBehavior.CenterPosition);
                 Vector2 attackDirection = Vector2.up;
                 if (closestEnemy != null)
@@ -82,26 +52,69 @@ namespace OctoberStudio.Abilities
                     attackDirection.Normalize();
                 }
 
-                for(int i = 0; i < AbilityLevel.SlashesCount; i++)
+                if (AbilityLevel.SurroundingSlashesCount > 0)
                 {
-                    var slash = slashPool.GetEntity();
+                    // Calculate angle step based on slash size and spacing
+                    float angleStep = AbilityLevel.SlashAngleCoverage + AbilityLevel.SlashSpacing;
+                    
+                    // Calculate total angle coverage
+                    float totalAngle = (AbilityLevel.SurroundingSlashesCount - 1) * angleStep;
+                    
+                    // Center angle on enemy direction
+                    float enemyAngle = Mathf.Atan2(attackDirection.y, attackDirection.x) * Mathf.Rad2Deg;
+                    float startAngle = enemyAngle - (totalAngle / 2f);
 
-                    slash.transform.position = PlayerBehavior.CenterPosition;
-                    slash.transform.rotation = Quaternion.FromToRotation(Vector2.right, attackDirection) * shashDirections[i].localRotation;
-                    slash.DamageMultiplier = AbilityLevel.Damage;
-                    slash.KickBack = false;
-                    slash.Size = AbilityLevel.SlashSize;
-                    slash.Init();
-                    slash.onFinished += OnProjectileFinished;
-                    slashes.Add(slash);
+                    // Spawn all slashes simultaneously, spread evenly with enemy at center
+                    for (int i = 0; i < AbilityLevel.SurroundingSlashesCount; i++)
+                    {
+                        float angle = startAngle + (i * angleStep);
+                        Vector2 direction = new Vector2(Mathf.Cos(angle * Mathf.Deg2Rad), Mathf.Sin(angle * Mathf.Deg2Rad));
 
+                        SpawnSlash(direction);
+                    }
+
+                    // Play sound once for all slashes
                     GameController.AudioManager.PlaySound(STEEL_SWORD_ATTACK_HASH);
-
-                    yield return new WaitForSeconds(AbilityLevel.TimeBetweenSlashes * PlayerBehavior.Player.CooldownMultiplier);
                 }
-                yield return new WaitForSeconds(AbilityLevel.AbilityCooldown * PlayerBehavior.Player.CooldownMultiplier - AbilityLevel.TimeBetweenSlashes * PlayerBehavior.Player.CooldownMultiplier * AbilityLevel.SlashesCount);
+                else
+                {
+                    // Original behavior - use predefined directions from shashDirections with delay
+                    for(int i = 0; i < AbilityLevel.SlashesCount; i++)
+                    {
+                        Vector2 direction = Quaternion.FromToRotation(Vector2.right, attackDirection) * shashDirections[i].localRotation * Vector2.right;
+                        SpawnSlash(direction);
+                        GameController.AudioManager.PlaySound(STEEL_SWORD_ATTACK_HASH);
+
+                        if (i < AbilityLevel.SlashesCount - 1)
+                        {
+                            yield return new WaitForSeconds(AbilityLevel.TimeBetweenSlashes * PlayerBehavior.Player.CooldownMultiplier);
+                        }
+                    }
+                }
+
+                yield return new WaitForSeconds(AbilityLevel.AbilityCooldown * PlayerBehavior.Player.CooldownMultiplier);
             }
         }
+
+        private void SpawnSlash(Vector2 direction)
+        {
+            var slash = slashPool.GetEntity();
+
+            slash.transform.position = PlayerBehavior.CenterPosition;
+            slash.transform.rotation = Quaternion.FromToRotation(Vector2.right, direction);
+            slash.DamageMultiplier = AbilityLevel.Damage;
+            slash.KickBack = false;
+            slash.Size = AbilityLevel.SlashSize;
+            slash.Range = AbilityLevel.SlashRange;
+            slash.Speed = AbilityLevel.SlashSpeed;
+            slash.Direction = direction;
+            slash.SlashAnimationDuration = AbilityLevel.SlashAnimationDuration;
+            slash.MoveDuration = AbilityLevel.SlashMoveDuration;
+            slash.Init();
+            slash.onFinished += OnProjectileFinished;
+            slashes.Add(slash);
+        }
+
         private void OnProjectileFinished(SwordSlashBehavior slash)
         {
             slash.onFinished -= OnProjectileFinished;

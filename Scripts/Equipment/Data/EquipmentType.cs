@@ -3,7 +3,7 @@
         Hat = 0,
         Armor = 1,
         Ring = 2,
-        Necklace = 3,
+        Gloves = 3,
         Belt = 4,
         Shoes = 5
     }

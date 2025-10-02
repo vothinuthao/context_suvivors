@@ -168,24 +168,24 @@ namespace Talents.Manager
         private void AutoGenerateNormalNodes()
         {
             if (!layoutConfig.AutoGenerateNormalNodes) return;
-            
+
             int currentId = 10000; // Start normal IDs from 10000
-            
+
             for (int level = 1; level <= layoutConfig.MaxPlayerLevel; level++)
             {
                 foreach (var baseStatPair in baseStats)
                 {
                     var baseStat = baseStatPair.Value;
                     var generatedTalent = CreateNormalNodeForLevel(currentId, baseStat, level);
-                    
+
                     normalTalents.Add(generatedTalent);
                     talentsById[currentId] = generatedTalent;
                     allTalents.Add(generatedTalent);
-                    
+
                     currentId++;
                 }
             }
-            
+
             // Add special talents to all talents list
             allTalents.AddRange(specialTalents);
         }

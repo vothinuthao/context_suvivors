@@ -4,6 +4,7 @@ using OctoberStudio.Easing;
 using OctoberStudio.Upgrades.UI;
 using Talents.UI;
 using UnityEngine;
+using UnityEngine.UI;
 
 namespace OctoberStudio.UI
 {
@@ -23,7 +24,7 @@ namespace OctoberStudio.UI
         [SerializeField] ShopWindowBehavior shopWindow;
 
         [Header("Shop & Harvest (Future Windows)")]
-        //[SerializeField] GameObject shopWindow;                     // Shop tab - placeholder
+        [SerializeField] private Button _btnSetting;                     // Shop tab - placeholder
         //[SerializeField] GameObject harvestWindow;                  // Harvest tab - placeholder
 
         private Canvas canvas;
@@ -41,6 +42,7 @@ namespace OctoberStudio.UI
             InitializeWindows();
             bottomNavigation.OnTabSelected += OnTabSelected;
             OnTabSelected(BottomNavigationBehavior.NavigationTab.Battle);
+            _btnSetting.onClick.AddListener(ShowSettings);
         }
 
         private void InitializeWindows()
@@ -171,8 +173,8 @@ namespace OctoberStudio.UI
         private void ReturnToLobby()
         {
             CloseCurrentWindow();
-            currentActiveTab = BottomNavigationBehavior.NavigationTab.Battle;
-            bottomNavigation.SelectTab(BottomNavigationBehavior.NavigationTab.Battle);
+            // currentActiveTab = BottomNavigationBehavior.NavigationTab.Battle;
+            // bottomNavigation.SelectTab(BottomNavigationBehavior.NavigationTab.Battle);
             
             // Open lobby window
             ShowLobby();

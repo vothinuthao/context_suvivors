@@ -84,6 +84,7 @@ namespace OctoberStudio
 
         private void Update()
         {
+            if(field == null) return;
             field.Update();
         }
 

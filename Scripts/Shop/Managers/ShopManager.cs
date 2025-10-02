@@ -347,6 +347,79 @@ namespace OctoberStudio.Shop
         /// </summary>
         private RewardData PerformSingleGachaPull(ShopItemModel gachaItem, string gachaType, bool isLastPull)
         {
+            // Check if this is character gacha
+            bool isCharacterGacha = gachaItem.Name.ToLower().Contains("character");
+
+            if (isCharacterGacha)
+            {
+                return PerformCharacterGachaPull(gachaItem, gachaType);
+            }
+            else
+            {
+                return PerformEquipmentGachaPull(gachaItem, gachaType);
+            }
+        }
+
+        /// <summary>
+        /// Perform character gacha pull
+        /// </summary>
+        private RewardData PerformCharacterGachaPull(ShopItemModel gachaItem, string gachaType)
+        {
+            Debug.Log($"[ShopManager] 🎭 Performing character gacha pull...");
+
+            // Get random character based on rarity pool
+            var characterRarity = GetRandomRarityFromPool(gachaItem.GachaPool);
+            var randomCharacter = GetRandomCharacterByRarity(characterRarity);
+
+            if (randomCharacter.character_id > 0)
+            {
+                var charactersSave = GameController.SaveManager.GetSave<CharactersSave>("Characters");
+                bool hasCharacter = charactersSave.HasCharacterBeenBought(randomCharacter.character_id);
+
+                if (hasCharacter)
+                {
+                    // Give character pieces instead
+                    int piecesAmount = GetCharacterPiecesAmount(characterRarity);
+                    charactersSave.AddCharacterPieces(randomCharacter.character_id, piecesAmount);
+
+
+                    return new RewardData
+                    {
+                        Type = RewardType.CharacterPieces,
+                        CharacterId = randomCharacter.character_id,
+                        Amount = piecesAmount,
+                        DisplayName = $"{randomCharacter.name} Pieces",
+                        Rarity = characterRarity,
+                        IsFromGacha = true
+                    };
+                }
+                else
+                {
+                    // Unlock new character
+                    charactersSave.AddBoughtCharacter(randomCharacter.character_id);
+
+                    Debug.Log($"[ShopManager] 🎉 New character unlocked: {randomCharacter.name}");
+
+                    return new RewardData
+                    {
+                        Type = RewardType.Character,
+                        CharacterId = randomCharacter.character_id,
+                        DisplayName = randomCharacter.name,
+                        Rarity = characterRarity,
+                        IsFromGacha = true
+                    };
+                }
+            }
+
+            Debug.LogWarning("[ShopManager] ❌ Failed to get character from gacha");
+            return null;
+        }
+
+        /// <summary>
+        /// Perform equipment gacha pull (original logic)
+        /// </summary>
+        private RewardData PerformEquipmentGachaPull(ShopItemModel gachaItem, string gachaType)
+        {
             var currentPity = shopSave.GetCurrentPity(gachaType);
             EquipmentRarity forcedRarity = EquipmentRarity.Common;
             bool shouldForcePity = false;
@@ -381,7 +454,7 @@ namespace OctoberStudio.Shop
             if (equipment != null && EquipmentManager.Instance != null)
             {
                 var addedItem = EquipmentManager.Instance.AddEquipmentToInventory(equipment.ID, 1);
-                
+
                 // Reset pity if epic or legendary
                 if (equipment.Rarity >= EquipmentRarity.Epic && gachaConfig.ResetPityOnEpic)
                 {
@@ -400,6 +473,101 @@ namespace OctoberStudio.Shop
             }
 
             return null;
+        }
+
+        /// <summary>
+        /// Get random rarity from gacha pool
+        /// </summary>
+        private EquipmentRarity GetRandomRarityFromPool(List<GachaPool> gachaPool)
+        {
+            if (gachaPool == null || gachaPool.Count == 0)
+            {
+                return EquipmentRarity.Common;
+            }
+
+            float totalWeight = 0f;
+            foreach (var pool in gachaPool)
+            {
+                totalWeight += pool.weight;
+            }
+
+            float randomValue = Random.Range(0f, totalWeight);
+            float currentWeight = 0f;
+
+            foreach (var pool in gachaPool)
+            {
+                currentWeight += pool.weight;
+                if (randomValue <= currentWeight)
+                {
+                    return ParseRarityFromString(pool.rarity);
+                }
+            }
+
+            return EquipmentRarity.Common;
+        }
+
+        /// <summary>
+        /// Parse EquipmentRarity from string
+        /// </summary>
+        private EquipmentRarity ParseRarityFromString(string rarityString)
+        {
+            return rarityString.ToLower() switch
+            {
+                "common" => EquipmentRarity.Common,
+                "uncommon" => EquipmentRarity.Uncommon,
+                "rare" => EquipmentRarity.Rare,
+                "epic" => EquipmentRarity.Epic,
+                "legendary" => EquipmentRarity.Legendary,
+                _ => EquipmentRarity.Common
+            };
+        }
+
+        /// <summary>
+        /// Get random character by rarity (placeholder - needs character database)
+        /// </summary>
+        private MockCharacterData GetRandomCharacterByRarity(EquipmentRarity rarity)
+        {
+            // TODO: Replace with actual character database logic
+            // For now, return mock character data based on CSV structure
+            var mockCharacters = new MockCharacterData[]
+            {
+                new MockCharacterData { character_id = 1, name = "Warrior Knight", rarity = EquipmentRarity.Common },
+                new MockCharacterData { character_id = 2, name = "Fire Mage", rarity = EquipmentRarity.Uncommon },
+                new MockCharacterData { character_id = 3, name = "Shadow Rogue", rarity = EquipmentRarity.Rare },
+                new MockCharacterData { character_id = 4, name = "Holy Priest", rarity = EquipmentRarity.Epic }
+            };
+
+            var charactersOfRarity = mockCharacters.Where(c => c.rarity == rarity).ToArray();
+            if (charactersOfRarity.Length > 0)
+            {
+                return charactersOfRarity[Random.Range(0, charactersOfRarity.Length)];
+            }
+
+            // Fallback to first common character
+            var commonCharacters = mockCharacters.Where(c => c.rarity == EquipmentRarity.Common).ToArray();
+            if (commonCharacters.Length > 0)
+            {
+                return commonCharacters[0];
+            }
+
+            // Last fallback - return first character
+            return mockCharacters.Length > 0 ? mockCharacters[0] : new MockCharacterData { character_id = 0, name = "Unknown", rarity = EquipmentRarity.Common };
+        }
+
+        /// <summary>
+        /// Get character pieces amount based on rarity
+        /// </summary>
+        private int GetCharacterPiecesAmount(EquipmentRarity rarity)
+        {
+            return rarity switch
+            {
+                EquipmentRarity.Common => 5,
+                EquipmentRarity.Uncommon => 10,
+                EquipmentRarity.Rare => 15,
+                EquipmentRarity.Epic => 25,
+                EquipmentRarity.Legendary => 50,
+                _ => 5
+            };
         }
 
         /// <summary>
@@ -605,10 +773,12 @@ namespace OctoberStudio.Shop
     {
         public RewardType Type;
         public int Quantity;
+        public int Amount; // For character pieces or other amounts
         public string DisplayName;
         public EquipmentRarity Rarity;
         public EquipmentModel EquipmentData;
         public string EquipmentUID;
+        public int CharacterId; // For character rewards
         public bool IsFromGacha;
     }
 
@@ -617,6 +787,18 @@ namespace OctoberStudio.Shop
         Gold,
         Gems,
         Equipment,
-        Character
+        Character,
+        CharacterPieces
+    }
+
+    /// <summary>
+    /// Mock character data structure for gacha system
+    /// </summary>
+    [System.Serializable]
+    public struct MockCharacterData
+    {
+        public int character_id;
+        public string name;
+        public EquipmentRarity rarity;
     }
 }

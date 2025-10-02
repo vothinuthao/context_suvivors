@@ -397,7 +397,7 @@ namespace OctoberStudio.Shop
             if (DataLoadingManager.Instance == null || string.IsNullOrEmpty(IconName))
                 return null;
 
-            return DataLoadingManager.Instance.LoadSprite("Shop", IconName);
+            return DataLoadingManager.Instance.LoadSprite("UI/Equipments", IconName);
         }
 
         /// <summary>

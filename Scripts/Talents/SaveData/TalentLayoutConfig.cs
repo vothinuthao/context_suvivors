@@ -15,6 +15,7 @@ namespace Talents.Config
         [Header("Column Positions")]
         [SerializeField] private float normalColumnX = -150f;
         [SerializeField] private float specialColumnX = 150f;
+        [SerializeField] private float specialNodeOffsetY = 90f; // Y position offset for special nodes relative to zone container
         
         [Header("Node Size Settings")]
         [SerializeField] private Vector2 normalNodeSize = new Vector2(120f, 120f);
@@ -23,14 +24,12 @@ namespace Talents.Config
         
         [Header("Zone Label Settings")]
         [SerializeField] private float zoneLabelOffsetY = -80f;
+        [SerializeField] private float zoneLabelPositionY = 60f; // Y position of zone label relative to zone container
         [SerializeField] private bool showZoneLabels = true;
-        [SerializeField] private Color zoneLabelColor = Color.yellow;
         [SerializeField] private int zoneLabelFontSize = 28;
         
         [Header("Connection Settings")]
         [SerializeField] private float connectionLineWidth = 4f;
-        [SerializeField] private Color activeConnectionColor = Color.green;
-        [SerializeField] private Color inactiveConnectionColor = Color.gray;
         [SerializeField] private bool showConnections = true;
         
         [Header("Level Configuration")]
@@ -60,16 +59,15 @@ namespace Talents.Config
         public float StartY => startY;
         public float NormalColumnX => normalColumnX;
         public float SpecialColumnX => specialColumnX;
+        public float SpecialNodeOffsetY => specialNodeOffsetY;
         public Vector2 NormalNodeSize => normalNodeSize * (mobileOptimized ? mobileScaleFactor : 1f);
         public Vector2 SpecialNodeSize => specialNodeSize * (mobileOptimized ? mobileScaleFactor : 1f);
         public Vector2 ZoneLabelSize => zoneLabelSize * (mobileOptimized ? mobileScaleFactor : 1f);
         public float ZoneLabelOffsetY => zoneLabelOffsetY;
+        public float ZoneLabelPositionY => zoneLabelPositionY;
         public bool ShowZoneLabels => showZoneLabels;
-        public Color ZoneLabelColor => zoneLabelColor;
         public int ZoneLabelFontSize => Mathf.RoundToInt(zoneLabelFontSize * (mobileOptimized ? mobileScaleFactor : 1f));
         public float ConnectionLineWidth => connectionLineWidth;
-        public Color ActiveConnectionColor => activeConnectionColor;
-        public Color InactiveConnectionColor => inactiveConnectionColor;
         public bool ShowConnections => showConnections;
         public int MaxPlayerLevel => maxPlayerLevel;
         public bool AutoGenerateNormalNodes => autoGenerateNormalNodes;
@@ -242,8 +240,9 @@ namespace Talents.Config
             startY = 50f;                 // Start very close to bottom
             
             // Column positions
-            normalColumnX = -160f;        
-            specialColumnX = 160f;        
+            normalColumnX = -160f;
+            specialColumnX = 160f;
+            specialNodeOffsetY = 90f;     // Default Y offset for special nodes        
             
             // Node sizes
             normalNodeSize = new Vector2(120f, 120f);    
@@ -252,14 +251,12 @@ namespace Talents.Config
             
             // Zone label positioning - minimal offset
             zoneLabelOffsetY = 10f;       // Very close to nodes
+            zoneLabelPositionY = 60f;     // Default Y position for zone labels
             showZoneLabels = true;
-            zoneLabelColor = new Color(1f, 0.9f, 0.3f); 
             zoneLabelFontSize = 24;       // Smaller font
             
             // Connection settings
-            connectionLineWidth = 4f;     
-            activeConnectionColor = new Color(0.2f, 0.9f, 0.2f, 0.9f);   
-            inactiveConnectionColor = new Color(0.5f, 0.5f, 0.5f, 0.5f); 
+            connectionLineWidth = 4f;
             showConnections = true;
             
             // Level configuration

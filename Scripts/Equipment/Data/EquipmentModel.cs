@@ -48,7 +48,7 @@ public class EquipmentModel : ICsvModel
         {
             if (System.Enum.TryParse<EquipmentRarity>(RarityString, true, out var result))
                 return result;
-            return EquipmentRarity.Common; // Default fallback
+            return (int)EquipmentRarity.Common; // Default fallback
         }
     }
     
@@ -58,7 +58,7 @@ public class EquipmentModel : ICsvModel
     {
     }
 
-    private string GETPATHICONS = "Equipment";
+    private string GETPATHICONS = "Equipments";
     /// <summary>
     /// Get equipment icon sprite based on IconName
     /// </summary>
@@ -97,18 +97,28 @@ public class EquipmentModel : ICsvModel
         }
     }
     
-    public Color GetRarityColor()
+    public Sprite GetRarityIcon()
     {
-        switch (Rarity)
+        if (DataLoadingManager.Instance == null)
         {
-            case EquipmentRarity.Common: return new Color(0.8f, 0.8f, 0.8f, 1f);      // Light Gray
-            case EquipmentRarity.Uncommon: return new Color(0.2f, 0.8f, 0.2f, 1f);   // Green  
-            case EquipmentRarity.Rare: return new Color(0.2f, 0.4f, 1f, 1f);         // Blue
-            case EquipmentRarity.Epic: return new Color(0.6f, 0.2f, 0.8f, 1f);       // Purple
-            case EquipmentRarity.Legendary: return new Color(1f, 0.8f, 0.2f, 1f);    // Gold
-            default: return Color.white;
+            return null;
         }
+
+        // Use the int value of EquipmentRarity as icon name
+        string iconName = ((int)Rarity).ToString();
+        return DataLoadingManager.Instance.LoadSprite(GETPATHICONS, iconName);
     }
+    // private Sprite GetRarityIcon(EquipmentRarity rarity)
+    // {
+    //     if (DataLoadingManager.Instance == null)
+    //     {
+    //         return null;
+    //     }
+    //
+    //     // Use the int value of EquipmentRarity as icon name
+    //     string iconName = ((int)rarity).ToString();
+    //     return DataLoadingManager.Instance.LoadSprite(GETPATHICONS, iconName);
+    // }
     
     /// <summary>
     /// Calculate total stats including level scaling

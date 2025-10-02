@@ -3,6 +3,8 @@ using OctoberStudio.Easing;
 using OctoberStudio.Extensions;
 using OctoberStudio.Input;
 using System.Collections.Generic;
+using OctoberStudio.Audio;
+using TMPro;
 using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.EventSystems;
@@ -23,6 +25,7 @@ namespace OctoberStudio.UI
         [Space]
         [SerializeField] ScrollRect scrollView;
         [SerializeField] Button backButton;
+
 
         private List<CharacterItemBehavior> items = new List<CharacterItemBehavior>();
 
@@ -108,6 +111,7 @@ namespace OctoberStudio.UI
             }
         }
 
+
         public void OnItemSelected(CharacterItemBehavior selectedItem)
         {
             var objPosition = (Vector2)scrollView.transform.InverseTransformPoint(selectedItem.Rect.position);
@@ -170,6 +174,7 @@ namespace OctoberStudio.UI
                 }
             }
         }
+
 
         public void Close()
         {

@@ -74,14 +74,14 @@ namespace OctoberStudio.Equipment.Drop
             // Set rarity border
             if (rarityBorder != null)
             {
-                rarityBorder.color = equipmentData.GetRarityColor();
+                if (equipmentData != null) rarityBorder.sprite = equipmentData.GetRarityIcon();
             }
 
             // Set up glow effect
             if (rarityGlowEffect != null)
             {
                 var main = rarityGlowEffect.main;
-                main.startColor = equipmentData.GetRarityColor();
+                // main.spr = equipmentData.GetRarityIcon();
                 rarityGlowEffect.Play();
             }
 

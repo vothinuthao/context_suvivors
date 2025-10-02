@@ -15,26 +15,27 @@ namespace Talents.UI
         [Header("UI References")]
         [SerializeField] private Image nodeIcon;
         [SerializeField] private Image nodeBackground;
+        [SerializeField] private Image specialNodeBackground; // Special background for Special type nodes
         [SerializeField] private Image nodeBorder;
         [SerializeField] private Button nodeButton;
-        [SerializeField] private TMP_Text nameText;
-        [SerializeField] private TMP_Text bonusText;
-        [SerializeField] private TMP_Text costText;
 
         [Header("Visual Elements")]
         [SerializeField] private GameObject lockIcon;
         [SerializeField] private GameObject learnedIcon;
         [SerializeField] private Image currencyIcon;
+        [SerializeField] private Image nodeGlow; // Glow effect for available nodes
 
-        [Header("Visual States")]
-        [SerializeField] private Color lockedColor = new Color(0.4f, 0.4f, 0.4f, 0.8f);
-        [SerializeField] private Color availableColor = Color.white;
-        [SerializeField] private Color learnedColor = new Color(0.2f, 0.8f, 0.2f, 1f);
-        [SerializeField] private Color insufficientColor = new Color(0.8f, 0.2f, 0.2f, 0.8f);
 
         [Header("Animation")]
         [SerializeField] private float touchScale = 0.9f;
         [SerializeField] private float animDuration = 0.15f;
+
+        [Header("Glow Effect")]
+        [SerializeField] private bool enableGlowEffect = true;
+        [SerializeField] private Color glowColor = new Color(1f, 1f, 0.5f, 0.7f);
+        [SerializeField] private float glowDuration = 1.0f;
+        [SerializeField] private float glowMinAlpha = 0.3f;
+        [SerializeField] private float glowMaxAlpha = 1.0f;
 
         // Properties
         public TalentModel TalentModel { get; private set; }
@@ -51,6 +52,9 @@ namespace Talents.UI
         private bool isAnimating = false;
         private TalentLayoutConfig layoutConfig;
 
+        // Glow animation
+        private Tween glowTween;
+
         private void Awake()
         {
             rectTransform = GetComponent<RectTransform>();
@@ -62,11 +66,6 @@ namespace Talents.UI
 
         private void SetupButton()
         {
-            if (nodeButton == null)
-                nodeButton = GetComponent<Button>();
-            
-            if (nodeButton == null)
-                nodeButton = gameObject.AddComponent<Button>();
 
             nodeButton.onClick.AddListener(OnButtonClicked);
 
@@ -91,9 +90,9 @@ namespace Talents.UI
             
             // Setup visual elements
             SetupIcon(talentModel);
-            SetupTexts(talentModel);
             SetupCurrencyIcon(talentModel);
-            
+            SetupSpecialBackground(talentModel);
+
             // Update visual state
             UpdateVisualState();
         }
@@ -180,11 +179,6 @@ namespace Talents.UI
                 nodeIcon.sprite = iconSprite;
                 nodeIcon.color = Color.white;
             }
-            else
-            {
-                // Create simple colored icon as last resort
-                CreateSimpleIcon(talent);
-            }
         }
 
         /// <summary>
@@ -229,100 +223,7 @@ namespace Talents.UI
             
             return layoutConfig?.DefaultNormalIcon ?? "default_normal";
         }
-
-        /// <summary>
-        /// Create simple colored icon as last resort
-        /// </summary>
-        private void CreateSimpleIcon(TalentModel talent)
-        {
-            if (nodeIcon == null) return;
-            
-            // Create simple colored square
-            var texture = new Texture2D(1, 1);
-            Color iconColor = GetTalentTypeColor(talent);
-            texture.SetPixel(0, 0, iconColor);
-            texture.Apply();
-            
-            var sprite = Sprite.Create(texture, new Rect(0, 0, 1, 1), Vector2.one * 0.5f);
-            nodeIcon.sprite = sprite;
-            nodeIcon.color = Color.white;
-            
-            Debug.LogWarning($"[TalentNodeBehavior] Using generated icon for talent {talent.Name}");
-        }
-
-        /// <summary>
-        /// Get color based on talent type
-        /// </summary>
-        private Color GetTalentTypeColor(TalentModel talent)
-        {
-            if (talent.NodeType == TalentNodeType.Special)
-                return new Color(1f, 0.8f, 0f); // Gold
-                
-            // Colors for normal stats
-            if (talent.Name.Contains("Attack")) return new Color(1f, 0.3f, 0.3f); // Red
-            if (talent.Name.Contains("Defense")) return new Color(0.3f, 0.3f, 1f); // Blue
-            if (talent.Name.Contains("Speed")) return new Color(0.3f, 1f, 0.3f); // Green
-            if (talent.Name.Contains("Heal")) return new Color(1f, 1f, 0.3f); // Yellow
-            
-            return Color.white;
-        }
-
-        /// <summary>
-        /// Setup text elements with proper sizing
-        /// </summary>
-        private void SetupTexts(TalentModel talent)
-        {
-            // Set name with appropriate font size
-            if (nameText != null)
-            {
-                nameText.text = GetDisplayName(talent);
-                nameText.color = Color.white;
-                
-                // Auto-adjust font size based on node size
-                if (layoutConfig != null)
-                {
-                    float baseFontSize = TalentModel.NodeType == TalentNodeType.Normal ? 16f : 18f;
-                    nameText.fontSize = baseFontSize * (layoutConfig.NormalNodeSize.x / 120f); // Scale based on node size
-                }
-            }
-
-            // Set bonus text
-            if (bonusText != null)
-            {
-                if (talent.NodeType == TalentNodeType.Normal)
-                {
-                    bonusText.text = $"+{talent.StatValue:F0}";
-                    bonusText.color = Color.green;
-                }
-                else
-                {
-                    bonusText.text = $"Lv.{talent.RequiredPlayerLevel}";
-                    bonusText.color = Color.yellow;
-                }
-                
-                // Auto-adjust font size
-                if (layoutConfig != null)
-                {
-                    float baseFontSize = 14f;
-                    bonusText.fontSize = baseFontSize * (layoutConfig.NormalNodeSize.x / 120f);
-                }
-            }
-
-            // Set cost text
-            if (costText != null)
-            {
-                costText.text = talent.Cost.ToString();
-                costText.color = Color.white;
-                
-                // Auto-adjust font size
-                if (layoutConfig != null)
-                {
-                    float baseFontSize = 12f;
-                    costText.fontSize = baseFontSize * (layoutConfig.NormalNodeSize.x / 120f);
-                }
-            }
-        }
-
+        
         /// <summary>
         /// Get display name for node
         /// </summary>
@@ -348,27 +249,37 @@ namespace Talents.UI
         {
             if (currencyIcon == null) return;
 
-            string currencyIconPath = talent.NodeType == TalentNodeType.Normal ? 
+            string currencyIconPath = talent.NodeType == TalentNodeType.Normal ?
                 "Icons/UI/gold_icon" : "Icons/UI/orc_icon";
-                
+
             var sprite = Resources.Load<Sprite>(currencyIconPath);
             if (sprite != null)
             {
                 currencyIcon.sprite = sprite;
                 currencyIcon.gameObject.SetActive(true);
             }
+        }
+
+        /// <summary>
+        /// Setup special background for Special type nodes
+        /// </summary>
+        private void SetupSpecialBackground(TalentModel talent)
+        {
+            if (specialNodeBackground == null) return;
+            if (talent.NodeType == TalentNodeType.Special)
+            {
+                specialNodeBackground.gameObject.SetActive(true);
+                string specialBgPath = "UI/Talents/special_node_background";
+                var specialBgSprite = Resources.Load<Sprite>(specialBgPath);
+
+                if (specialBgSprite != null)
+                {
+                    specialNodeBackground.sprite = specialBgSprite;
+                }
+            }
             else
             {
-                // Create simple colored icon for currency
-                var texture = new Texture2D(1, 1);
-                Color currencyColor = talent.NodeType == TalentNodeType.Normal ? 
-                    new Color(1f, 0.8f, 0f) : new Color(0.5f, 0.3f, 0.1f); // Gold vs Brown
-                texture.SetPixel(0, 0, currencyColor);
-                texture.Apply();
-                
-                var currencySprite = Sprite.Create(texture, new Rect(0, 0, 1, 1), Vector2.one * 0.5f);
-                currencyIcon.sprite = currencySprite;
-                currencyIcon.gameObject.SetActive(true);
+                specialNodeBackground.gameObject.SetActive(false);
             }
         }
 
@@ -383,7 +294,6 @@ namespace Talents.UI
             ProgressInfo = TalentManager.Instance.GetTalentProgressInfo(TalentModel.ID);
 
             UpdateNodeAppearance();
-            UpdateCostDisplay();
             UpdateInteractionState();
             UpdateStatusIcons();
         }
@@ -393,66 +303,9 @@ namespace Talents.UI
         /// </summary>
         private void UpdateNodeAppearance()
         {
-            Color backgroundColor = lockedColor;
-            Color borderColor = lockedColor;
-            float alpha = 1f;
-
-            switch (ProgressInfo.UnlockStatus)
-            {
-                case TalentUnlockStatus.Locked:
-                    backgroundColor = lockedColor;
-                    borderColor = lockedColor;
-                    alpha = 0.6f;
-                    break;
-                    
-                case TalentUnlockStatus.Available:
-                    backgroundColor = availableColor;
-                    borderColor = availableColor;
-                    alpha = 1f;
-                    break;
-                    
-                case TalentUnlockStatus.Learned:
-                    backgroundColor = learnedColor;
-                    borderColor = learnedColor;
-                    alpha = 1f;
-                    break;
-                    
-                case TalentUnlockStatus.InsufficientPoints:
-                    backgroundColor = insufficientColor;
-                    borderColor = insufficientColor;
-                    alpha = 0.8f;
-                    break;
-            }
-
-            // Apply colors
-            if (nodeBackground != null)
-                nodeBackground.color = backgroundColor;
-
-            if (nodeBorder != null)
-                nodeBorder.color = borderColor;
+            UpdateGlowEffect();
         }
 
-        /// <summary>
-        /// Update cost display
-        /// </summary>
-        private void UpdateCostDisplay()
-        {
-            if (costText == null) return;
-
-            if (ProgressInfo.UnlockStatus == TalentUnlockStatus.Learned)
-            {
-                costText.text = "✓";
-                costText.color = learnedColor;
-            }
-            else
-            {
-                costText.text = TalentModel.Cost.ToString();
-                
-                // Color based on affordability
-                bool canAfford = ProgressInfo.UnlockStatus == TalentUnlockStatus.Available;
-                costText.color = canAfford ? Color.white : insufficientColor;
-            }
-        }
 
         /// <summary>
         /// Update interaction state
@@ -637,15 +490,91 @@ namespace Talents.UI
         }
 
         /// <summary>
+        /// Update glow effect based on unlock status
+        /// </summary>
+        private void UpdateGlowEffect()
+        {
+            if (!enableGlowEffect || nodeGlow == null) return;
+
+            // Stop existing glow animation
+            StopGlowAnimation();
+
+            if (ProgressInfo.UnlockStatus == TalentUnlockStatus.Available)
+            {
+                // Start pulsing glow animation for available nodes
+                StartGlowAnimation();
+            }
+            else
+            {
+                // Hide glow for non-available nodes
+                nodeGlow.color = new Color(glowColor.r, glowColor.g, glowColor.b, 0f);
+            }
+        }
+
+        /// <summary>
+        /// Start glow animation for available nodes
+        /// </summary>
+        private void StartGlowAnimation()
+        {
+            if (nodeGlow == null) return;
+
+            // Set initial glow color
+            nodeGlow.color = new Color(glowColor.r, glowColor.g, glowColor.b, glowMinAlpha);
+
+            // Create pulsing animation
+            glowTween = nodeGlow.DOFade(glowMaxAlpha, glowDuration)
+                .SetLoops(-1, LoopType.Yoyo)
+                .SetEase(Ease.InOutSine);
+        }
+
+        /// <summary>
+        /// Stop glow animation
+        /// </summary>
+        private void StopGlowAnimation()
+        {
+            glowTween?.Kill();
+            glowTween = null;
+        }
+
+        /// <summary>
+        /// Animate upgrade effect when node is learned
+        /// </summary>
+        public void PlayUpgradeAnimation()
+        {
+            if (!IsInitialized) return;
+
+            // Stop glow first
+            StopGlowAnimation();
+
+            // Scale pulse animation
+            var sequence = DOTween.Sequence();
+            sequence.Append(transform.DOScale(originalScale * 1.3f, 0.25f).SetEase(Ease.OutBack));
+            sequence.Append(transform.DOScale(originalScale, 0.25f).SetEase(Ease.InBack));
+
+            // Color flash if we have border
+            if (nodeBorder != null)
+            {
+                var originalBorderColor = nodeBorder.color;
+                sequence.Join(nodeBorder.DOColor(Color.white, 0.15f).SetLoops(2, LoopType.Yoyo));
+            }
+
+            // Completion callback
+            sequence.OnComplete(() => {
+                UpdateVisualState(); // Refresh to learned state
+            });
+        }
+
+        /// <summary>
         /// Cleanup
         /// </summary>
         private void OnDestroy()
         {
             DOTween.Kill(gameObject);
-            
+            StopGlowAnimation();
+
             if (nodeButton != null)
                 nodeButton.onClick.RemoveAllListeners();
-                
+
             OnNodeClicked?.RemoveAllListeners();
         }
     }

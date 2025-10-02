@@ -48,12 +48,16 @@ namespace OctoberStudio.Save
 
             DontDestroyOnLoad(gameObject);
 
+            Debug.Log($"[SaveManager] 🔍 clearSave flag: {clearSave}");
+
             if (clearSave)
             {
+                Debug.LogWarning("[SaveManager] ⚠️ CLEARING ALL SAVE DATA!");
                 InitClear();
             }
             else
             {
+                Debug.Log("[SaveManager] 📁 Loading existing save data...");
                 Load();
             }
 
@@ -79,7 +83,19 @@ namespace OctoberStudio.Save
                 return default;
             }
 
-            return SaveDatabase.GetSave<T>(hash);
+            Debug.Log($"[SaveManager] 🔍 GetSave<{typeof(T).Name}> requested (hash: {hash})");
+            T result = SaveDatabase.GetSave<T>(hash);
+
+            if (result != null)
+            {
+                Debug.Log($"[SaveManager] ✅ Found existing save for {typeof(T).Name}");
+            }
+            else
+            {
+                Debug.Log($"[SaveManager] ⚠️ Creating new save for {typeof(T).Name}");
+            }
+
+            return result;
         }
 
         /// <summary>

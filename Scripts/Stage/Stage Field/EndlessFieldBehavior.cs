@@ -169,6 +169,7 @@ namespace OctoberStudio
 
         protected virtual void CheckTopRow()
         {
+            if (chunks.Count == 0) return;
             if (!chunks[0][0].IsVisible)
             {
                 if (!chunks[0][^1].IsVisible)

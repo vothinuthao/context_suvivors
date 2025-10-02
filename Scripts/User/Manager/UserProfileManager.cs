@@ -17,15 +17,6 @@ namespace OctoberStudio.User
         [Header("UI Reference")]
         [SerializeField] protected UserProfileUI userProfileUI;
         
-        
-        [Header("XP Configuration")]
-        [SerializeField] protected float xpPerMinuteSurvived = 6f; // 1 XP per 10 seconds
-        [SerializeField] protected int stageCompletionBonusXP = 100;
-        [SerializeField] protected int firstTimeBonusXP = 50;
-
-        [Header("Level Rewards")]
-        [SerializeField] protected UnlockReward[] levelRewards;
-        
         [Header("CSV Configuration")]
         [SerializeField] private bool useCSVConfig = true;
         // Events
@@ -213,13 +204,6 @@ namespace OctoberStudio.User
 
         protected void CheckLevelRewards(int level)
         {
-            foreach (var reward in levelRewards)
-            {
-                if (reward.unlockLevel == level)
-                {
-                    UnlockReward(reward);
-                }
-            }
             if (useCSVConfig && UserLevelDatabase.Instance.IsDataLoaded)
             {
                 var rewards = UserLevelDatabase.Instance.GetLevelRewards(level);
@@ -371,26 +355,6 @@ namespace OctoberStudio.User
             
             return (long)Mathf.Max(totalXP, 10);
         }
-        // Utility methods
-        public virtual bool IsFeatureUnlocked(string featureName)
-        {
-            return PlayerPrefs.GetInt($"Feature_{featureName}", 0) == 1;
-        }
-
-        public virtual int GetRequiredLevelForCharacter(int characterId)
-        {
-            foreach (var reward in levelRewards)
-            {
-                if (reward.rewardType == RewardType.Character && reward.rewardId == characterId)
-                {
-                    return reward.unlockLevel;
-                }
-            }
-
-            return 1;
-        }
-
-        // Debug methods
         [System.Diagnostics.Conditional("UNITY_EDITOR")]
         public void DebugAddXP(long xp)
         {

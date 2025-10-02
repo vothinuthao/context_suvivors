@@ -77,11 +77,10 @@ namespace User.UI
 
             // User level
             if (userLevelText != null)
-                userLevelText.text = $"{profileSave.UserLevel}";
-
-            // Total XP
+                userLevelText.text = $"lv {profileSave.UserLevel}";
+            
             if (totalXPText != null)
-                totalXPText.text = $"Total XP: {profileSave.TotalXP:N0}";
+                totalXPText.text = $"XP: {profileSave.TotalXP:N0}";
 
             // Level progress
             if (levelProgressSlider != null)

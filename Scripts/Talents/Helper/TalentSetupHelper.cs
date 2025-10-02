@@ -34,6 +34,13 @@ namespace Talents.Tools
             if (validateSetup)
             {
                 ValidateCurrentSetup();
+
+                // Disable auto-fix to prevent loops - user can manually run if needed
+                // if (setupStatus.Contains("❌"))
+                // {
+                //     Log("Setup incomplete detected. Auto-fixing...");
+                //     AutoSetupTalentSystem();
+                // }
             }
         }
 
@@ -139,11 +146,15 @@ namespace Talents.Tools
         {
             Log("Creating default icons...");
 
-            // Create default icon textures
-            CreateDefaultIcon("Icons/Talents/atk_icon", new Color(1f, 0.3f, 0.3f)); // Red
-            CreateDefaultIcon("Icons/Talents/def_icon", new Color(0.3f, 0.3f, 1f)); // Blue
-            CreateDefaultIcon("Icons/Talents/speed_icon", new Color(0.3f, 1f, 0.3f)); // Green
-            CreateDefaultIcon("Icons/Talents/heal_icon", new Color(1f, 1f, 0.3f)); // Yellow
+#if UNITY_EDITOR
+            // Create folders first
+            CreateFolderIfNotExists("Assets/Resources");
+            CreateFolderIfNotExists("Assets/Resources/Icons");
+            CreateFolderIfNotExists("Assets/Resources/Icons/Talents");
+            CreateFolderIfNotExists("Assets/Resources/Icons/UI");
+#endif
+
+            // Create default icon textures (only if they don't exist)
             CreateDefaultIcon("Icons/Talents/default_normal", Color.white);
             CreateDefaultIcon("Icons/Talents/default_special", new Color(1f, 0.8f, 0f)); // Gold
             CreateDefaultIcon("Icons/UI/gold_icon", new Color(1f, 0.8f, 0f)); // Gold
@@ -158,9 +169,10 @@ namespace Talents.Tools
         private void CreateDefaultIcon(string resourcePath, Color color)
         {
 #if UNITY_EDITOR
-            // Check if icon already exists
-            var existingIcon = Resources.Load<Sprite>(resourcePath);
-            if (existingIcon != null)
+            // Check if icon already exists (as Sprite or Texture2D)
+            var existingSprite = Resources.Load<Sprite>(resourcePath);
+            var existingTexture = Resources.Load<Texture2D>(resourcePath);
+            if (existingSprite != null || existingTexture != null)
             {
                 Log($"Icon already exists: {resourcePath}");
                 return;
@@ -219,9 +231,31 @@ namespace Talents.Tools
         {
             Log("Validating current setup...");
 
-            // Check layout config
-            var layoutConfig = Resources.Load<TalentLayoutConfig>("TalentLayoutConfig");
+            // Check layout config - use AssetDatabase for non-Resources files
+            TalentLayoutConfig layoutConfig = null;
+
+#if UNITY_EDITOR
+            // In Editor, search for the asset
+            string[] guids = UnityEditor.AssetDatabase.FindAssets("t:TalentLayoutConfig");
+            if (guids.Length > 0)
+            {
+                string path = UnityEditor.AssetDatabase.GUIDToAssetPath(guids[0]);
+                layoutConfig = UnityEditor.AssetDatabase.LoadAssetAtPath<TalentLayoutConfig>(path);
+                Log($"✅ Found TalentLayoutConfig at: {path}");
+            }
+#else
+            // In build, try Resources paths
+            layoutConfig = Resources.Load<TalentLayoutConfig>("TalentLayoutConfig");
+            if (layoutConfig == null) layoutConfig = Resources.Load<TalentLayoutConfig>("Talent/TalentLayoutConfig");
+            if (layoutConfig == null) layoutConfig = Resources.Load<TalentLayoutConfig>("Talents/TalentLayoutConfig");
+#endif
+
             hasLayoutConfig = layoutConfig != null;
+
+            if (!hasLayoutConfig)
+            {
+                Log($"❌ TalentLayoutConfig not found");
+            }
 
             // Check icon folder
             hasIconFolder = Resources.Load<Sprite>("Icons/Talents/atk_icon") != null;
@@ -261,10 +295,22 @@ namespace Talents.Tools
 
             foreach (string iconPath in requiredIcons)
             {
-                if (Resources.Load<Sprite>(iconPath) == null)
+                // Try loading as Sprite first, then as Texture2D (for .psd files)
+                var sprite = Resources.Load<Sprite>(iconPath);
+                var texture = Resources.Load<Texture2D>(iconPath);
+
+                if (sprite == null && texture == null)
                 {
-                    Log($"Missing icon: {iconPath}");
+                    Log($"❌ Missing icon: {iconPath}");
                     return false;
+                }
+                else if (sprite != null)
+                {
+                    Log($"✅ Found icon (Sprite): {iconPath}");
+                }
+                else if (texture != null)
+                {
+                    Log($"✅ Found icon (Texture2D): {iconPath}");
                 }
             }
 
@@ -334,10 +380,25 @@ namespace Talents.Tools
 
             var talentDatabase = FindObjectOfType<TalentDatabase>();
             Log($"TalentDatabase Found: {(talentDatabase != null ? "✅" : "❌")}");
-            
+
             if (talentDatabase != null)
             {
                 Log($"CSV Data Loaded: {(talentDatabase.IsDataLoaded ? "✅" : "❌")}");
+
+                if (!talentDatabase.IsDataLoaded)
+                {
+                    Log("⚠️ Attempting to load CSV data...");
+                    try
+                    {
+                        talentDatabase.LoadTalentData();
+                        Log($"✅ Manual load attempt - Data loaded: {talentDatabase.IsDataLoaded}");
+                    }
+                    catch (System.Exception e)
+                    {
+                        Log($"❌ Failed to load CSV data: {e.Message}");
+                    }
+                }
+
                 Log($"Total Talents: {talentDatabase.TotalTalentCount}");
                 Log($"Max Zone Level: {talentDatabase.MaxPlayerLevel}");
             }

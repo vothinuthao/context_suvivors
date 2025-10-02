@@ -89,21 +89,31 @@ namespace OctoberStudio
         protected List<EnemyBehavior> enemiesInside = new List<EnemyBehavior>();
 
         protected CharactersSave charactersSave;
+        protected CharacterUpgradeManager upgradeManager;
         public CharacterData Data { get; set; }
         private CharacterBehavior Character { get; set; }
         public ElementType ElementType => Data.ElementType;
+
+        public float CurrentBaseHP => upgradeManager != null ?
+            upgradeManager.GetCharacterHP(charactersSave.SelectedCharacterId) : Data.BaseHP;
+
+        public float CurrentBaseDamage => upgradeManager != null ?
+            upgradeManager.GetCharacterDamage(charactersSave.SelectedCharacterId) : Data.BaseDamage;
 
         protected virtual void Awake()
         {
             charactersSave = GameController.SaveManager.GetSave<CharactersSave>("Characters");
             Data = charactersDatabase.GetCharacterData(charactersSave.SelectedCharacterId);
 
+            // Get the upgrade manager to access upgraded stats
+            upgradeManager = FindObjectOfType<CharacterUpgradeManager>();
+
             Character = Instantiate(Data.Prefab).GetComponent<CharacterBehavior>();
             Character.Transform.SetParent(transform);
             Character.Transform.ResetLocal();
 
             instance = this;
-            healthbar.Init(Data.BaseHP);
+            healthbar.Init(CurrentBaseHP);
             healthbar.SetAutoHideWhenMax(true);
             healthbar.SetAutoShowOnChanged(true);
 
@@ -184,7 +194,7 @@ namespace OctoberStudio
 
         public virtual void RecalculateDamage(float damageMultiplier)
         {
-            Damage = Data.BaseDamage * damageMultiplier;
+            Damage = CurrentBaseDamage * damageMultiplier;
             if (GameController.UpgradesManager.IsUpgradeAquired(UpgradeType.Damage))
             {
                 Damage *= GameController.UpgradesManager.GetUpgadeValue(UpgradeType.Damage);
@@ -194,7 +204,7 @@ namespace OctoberStudio
         public virtual void RecalculateMaxHP(float maxHPMultiplier)
         {
             var upgradeValue = GameController.UpgradesManager.GetUpgadeValue(UpgradeType.Health);
-            healthbar.ChangeMaxHP((Data.BaseHP + upgradeValue) * maxHPMultiplier);
+            healthbar.ChangeMaxHP((CurrentBaseHP + upgradeValue) * maxHPMultiplier);
         }
 
         public virtual void RecalculateXPMuliplier(float xpMultiplier)
@@ -377,8 +387,8 @@ namespace OctoberStudio
             if (Equipment.EquipmentManager.Instance == null)
                 return;
             var equipmentStats = Equipment.EquipmentManager.Instance.GetTotalEquipmentStats();
-            RecalculateMaxHP(1f + equipmentStats.bonusHP / Data.BaseHP);
-            RecalculateDamage(1f + equipmentStats.bonusDamage / Data.BaseDamage);
+            RecalculateMaxHP(1f + equipmentStats.bonusHP / CurrentBaseHP);
+            RecalculateDamage(1f + equipmentStats.bonusDamage / CurrentBaseDamage);
             RecalculateMoveSpeed(1f + equipmentStats.bonusSpeed);
             RecalculateMagnetRadius(1f + equipmentStats.bonusMagnetRadius);
             RecalculateXPMuliplier(1f + equipmentStats.bonusXPMultiplier);
